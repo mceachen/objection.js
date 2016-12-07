@@ -143,7 +143,7 @@ declare module "objection" {
     dbRefProp: string;
     propRefRegex: RegExp;
     pickJsonSchemaProperties: boolean;
-    defaultEagerAlgorithm?: EagerAlgorithm
+    defaultEagerAlgorithm?: EagerAlgorithm;
     defaultEagerOptions?: EagerOptions;
     QueryBuilder: typeof QueryBuilder;
     RelatedQueryBuilder: typeof QueryBuilder;
