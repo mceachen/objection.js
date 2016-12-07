@@ -131,6 +131,7 @@ declare module "objection" {
    * See https://github.com/Microsoft/TypeScript/issues/5863#issuecomment-242782664
    */
   interface ModelClass<T extends Model> {
+    new(): T;
     tableName: string;
     jsonSchema: JsonSchema;
     idColumn: string;
