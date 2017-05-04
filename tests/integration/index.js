@@ -1,13 +1,12 @@
 'use strict';
 
-var _ = require('lodash');
-var os = require('os');
-var path = require('path');
-var modelTestUtils = require('./utils');
+const os = require('os');
+const path = require('path');
+const TestSession = require('./../../testUtils/TestSession');
 
-describe('integration tests', function () {
+describe('integration tests', () => {
 
-  var testDatabaseConfigs = [{
+  const testDatabaseConfigs = [{
     client: 'sqlite3',
     useNullAsDefault: true,
     connection: {
@@ -17,29 +16,31 @@ describe('integration tests', function () {
     client: 'mysql',
     connection: {
       host: '127.0.0.1',
-      user: 'travis',
+      user: 'objection',
       database: 'objection_test'
     }
   }, {
     client: 'postgres',
     connection: {
       host: '127.0.0.1',
+      user: 'objection',
       database: 'objection_test'
     }
   }];
 
-  _.each(testDatabaseConfigs, function (knexConfig) {
+  testDatabaseConfigs.forEach(knexConfig => {
 
-    var session = modelTestUtils.initialize({
+    const session = new TestSession({
       knexConfig: knexConfig
     });
 
-    describe(knexConfig.client, function () {
-      before(function () {
+    describe(knexConfig.client, () => {
+
+      before(() =>  {
         return session.createDb();
       });
 
-      after(function () {
+      after(() => {
         return session.destroy();
       });
 
@@ -56,6 +57,7 @@ describe('integration tests', function () {
       require('./transactions')(session);
       require('./queryContext')(session);
       require('./compositeKeys')(session);
+      require('./crossDb')(session);
 
       if (knexConfig.client === 'postgres') {
         require('./jsonQueries')(session);

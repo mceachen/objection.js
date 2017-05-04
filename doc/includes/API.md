@@ -22,43 +22,6 @@ The query is executed when one of its promise methods [`then()`](#then), [`catch
 
 
 
-#### extend
-
-```js
-QueryBuilder.extend(subclassConstructor);
-```
-
-> ES5:
-
-```js
-function MyQueryBuilder() {
-  QueryBuilder.apply(this, arguments);
-}
-
-QueryBuilder.extend(MyQueryBuilder);
-```
-
-> ES6:
-
-```js
-class MyQueryBuilder extends QueryBuilder {
-
-}
-```
-
-Makes the given constructor a subclass of [`QueryBuilder`](#querybuilder).
-
-This method can be used to do ES5 inheritance. If you are using ES6 or newer, you can just use the `class` and `extend`
-keywords and you don't need to call this method.
-
-##### Arguments
-
-Argument|Type|Description
---------|----|-------|------------
-subclassConstructor|function|The subclass's constructor.
-
-
-
 
 #### forClass
 
@@ -84,6 +47,91 @@ Type|Description
 
 
 
+### Global query building helpers
+
+#### ref
+
+```js
+const ref = require('objection').ref;
+```
+
+Factory function that returns `ReferenceBuilder` instance, which makes it easier to refer
+tables, columns, json attributes and add casting to referred columns wihtout need to use
+Model.raw() directly.
+
+`ref()` can be passed to all `QueryBuilder` APIs which supports `Model.raw()` arguments.
+
+```js
+import { ref } from 'objection';
+
+Model.query()
+  .select([
+    'id',
+    ref('Model.jsonColumn:details.name').castText().as('name'),
+    ref('Model.jsonColumn:details.age').castInt().as('age')
+  ])
+  .join('OtherModel', ref('Model.jsonColumn:details.name').castText(), '=', ref('OtherModel.name'))
+  .where('age', '>', ref('OtherModel.ageLimit'));
+```
+
+#### ReferenceBuilder methods
+
+##### castText()
+
+Cast reference to sql type `text`.
+
+##### castInt()
+
+Cast reference to sql type `integer`.
+
+##### castBigInt()
+
+Cast reference to sql type `bigint`.
+
+##### castFloat()
+
+Cast reference to sql type `float`.
+
+##### castDecimal()
+
+Cast reference to sql type `decimal`.
+
+##### castReal()
+
+Cast reference to sql type `real`.
+
+##### castBool()
+
+Cast reference to sql type `boolean`.
+
+##### castType(sqlType)
+
+Give custom casting type to which referenced value is casted to.
+
+`.castType('mytype') => CAST(?? as mytype)`
+
+##### castJson()
+
+In addition to other casts wrap reference to_jsonb() function so that final value
+reference will be json type.
+
+##### as(as)
+
+As format to tell which name will be used for reference for example in `.select(ref('age').as('yougness'))`
+
+#### lit() (Not implemented yet)
+
+The same as `ref()` but allows one to tell in which format certain javascript literal
+should be passed to database engine.
+
+#### raw() (Not implemented yet)
+
+Wrapper for raw, which will be evaluated lazily in stage where `Model` or query is
+already bound to knex connection. Also understands `ref()` and `lit()` instances as
+bound parameters.
+
+
+
 ### Query building methods
 
 
@@ -91,7 +139,7 @@ Type|Description
 #### findById
 
 ```js
-var builder = queryBuilder.findById(id);
+const builder = queryBuilder.findById(id);
 ```
 
 ```js
@@ -122,14 +170,14 @@ Type|Description
 #### insert
 
 ```js
-var builder = queryBuilder.insert(modelsOrObjects);
+const builder = queryBuilder.insert(modelsOrObjects);
 ```
 
 ```js
 Person
   .query()
   .insert({firstName: 'Jennifer', lastName: 'Lawrence'})
-  .then(function (jennifer) {
+  .then(jennifer => {
     console.log(jennifer.id);
   });
 ```
@@ -143,7 +191,7 @@ someMovie
     {firstName: 'Jennifer', lastName: 'Lawrence'},
     {firstName: 'Bradley', lastName: 'Cooper'}
   ])
-  .then(function (actors) {
+  .then(actors => {
     console.log(actors[0].firstName);
     console.log(actors[1].firstName);
   });
@@ -172,8 +220,8 @@ someMovie
     lastName: 'Lawrence',
     someExtra: "I'll be written to the join table"
   })
-  .then(function (jennifer) {
-
+  .then(jennifer => {
+    console.log(jennifer.someExtra);
   });
 ```
 
@@ -185,7 +233,7 @@ the Promise is rejected with a [`ValidationError`](#validationerror).
 NOTE: The return value of the insert query _only_ contains the properties given to the insert
 method plus the identifier. This is because we don't make an additional fetch query after
 the insert. Using postgres you can chain [`returning('*')`](#returning) to the query to get all
-properties - see [this recipe](#postgresql-returning-tricks) for some examples. On other databases you
+properties - see [this recipe](#postgresql-quot-returning-quot-tricks) for some examples. On other databases you
 can use the [`insertAndFetch`](#insertandfetch) method.
 
 The batch insert only works on Postgres because Postgres is the only database engine
@@ -212,13 +260,13 @@ Type|Description
 #### insertAndFetch
 
 ```js
-var builder = queryBuilder.insertAndFetch(modelsOrObjects);
+const builder = queryBuilder.insertAndFetch(modelsOrObjects);
 ```
 
 Just like [`insert`](#insert) but also fetches the model afterwards.
 
 Note that on postgresql you can just chain [`returning('*')`](#returning) to the normal insert method
-to get the same result without an additional query. See [this recipe](#postgresql-returning-tricks) for some examples.
+to get the same result without an additional query. See [this recipe](#postgresql-quot-returning-quot-tricks) for some examples.
 
 ##### Arguments
 
@@ -238,7 +286,7 @@ Type|Description
 #### insertGraph
 
 ```js
-var builder = queryBuilder.insertGraph(graph);
+const builder = queryBuilder.insertGraph(graph);
 ```
 
 > You can insert any asyclic graph of models like this:
@@ -386,7 +434,7 @@ Alias for [insertGraphAndFetch](#insertgraphandfetch).
 #### update
 
 ```js
-var builder = queryBuilder.update(modelOrObject);
+const builder = queryBuilder.update(modelOrObject);
 ```
 
 ```js
@@ -394,12 +442,12 @@ Person
   .query()
   .update({firstName: 'Jennifer', lastName: 'Lawrence', age: 24})
   .where('id', 134)
-  .then(function (numberOfAffectedRows) {
+  .then(numberOfAffectedRows => {
     console.log(numberOfAffectedRows);
   });
 ```
 
-> You can also give raw expressions and subqueries as values like this:
+> You can also give raw expressions, subqueries and `ref()` as values like this:
 
 ```js
 Person
@@ -407,7 +455,19 @@ Person
   .update({
     firstName: Person.raw("'Jenni' || 'fer'"),
     lastName: 'Lawrence',
-    age: Person.query().avg('age')
+    age: Person.query().avg('age'),
+    oldLastName: ref('lastName') // same as knex.raw('??', ['lastName'])
+  });
+```
+
+> Updating single value inside json column and referring attributes inside json columns (only with postgres) etc.:
+
+```js
+Person
+  .query()
+  .update({
+    lastName: ref('someJsonColumn:mother.lastName').castText(),
+    'detailsJsonColumn:address.street': 'Elm street'
   });
 ```
 
@@ -421,7 +481,7 @@ want to update a subset of properties use the [`patch`](#patch) method.
 
 NOTE: The return value of the query will be the number of affected rows. If you want to update a single row and
 retrieve the updated row as a result, you may want to use the [`updateAndFetchById`](#updateandfetchbyid) method
-or *take a look at [this recipe](#postgresql-returning-tricks) if you're using Postgres*.
+or *take a look at [this recipe](#postgresql-quot-returning-quot-tricks) if you're using Postgres*.
 
 ##### Arguments
 
@@ -441,14 +501,14 @@ Type|Description
 #### updateAndFetchById
 
 ```js
-var builder = queryBuilder.updateAndFetchById(id, modelOrObject);
+const builder = queryBuilder.updateAndFetchById(id, modelOrObject);
 ```
 
 ```js
 Person
   .query()
   .updateAndFetchById(134, {firstName: 'Jennifer', lastName: 'Lawrence', age: 24})
-  .then(function (updatedModel) {
+  .then(updatedModel => {
     console.log(updatedModel.firstName);
   });
 ```
@@ -474,7 +534,7 @@ This method is meant for updating _whole_ objects with all required properties. 
 want to update a subset of properties use the [`patchAndFetchById`](#patchandfetchbyid) method.
 
 NOTE: On postgresql you can just chain [`first()`](#first) and [`returning('*')`](#returning) to the normal [`update`](#update) method
-to get the same result without an additional query. See [this recipe](#postgresql-returning-tricks) for some examples.
+to get the same result without an additional query. See [this recipe](#postgresql-quot-returning-quot-tricks) for some examples.
 
 ##### Arguments
 
@@ -495,14 +555,14 @@ Type|Description
 #### updateAndFetch
 
 ```js
-var builder = queryBuilder.updateAndFetch(modelOrObject);
+const builder = queryBuilder.updateAndFetch(modelOrObject);
 ```
 
 ```js
 person
   .$query()
   .updateAndFetch({firstName: 'Jennifer', lastName: 'Lawrence', age: 24})
-  .then(function (updatedModel) {
+  .then(updatedModel => {
     console.log(updatedModel.firstName);
   });
 ```
@@ -529,7 +589,7 @@ This method is meant for updating _whole_ objects with all required properties. 
 want to update a subset of properties use the [`patchAndFetch`](#patchandfetch) method.
 
 NOTE: On postgresql you can just chain [`first()`](#first) and [`returning('*')`](#returning) to the normal [`update`](#update) method
-to get the same result without an additional query. See [this recipe](#postgresql-returning-tricks) for some examples.
+to get the same result without an additional query. See [this recipe](#postgresql-quot-returning-quot-tricks) for some examples.
 
 ##### Arguments
 
@@ -549,7 +609,7 @@ Type|Description
 #### patch
 
 ```js
-var builder = queryBuilder.patch(modelOrObject);
+const builder = queryBuilder.patch(modelOrObject);
 ```
 
 ```js
@@ -557,19 +617,20 @@ Person
   .query()
   .patch({age: 24})
   .where('id', 134)
-  .then(function (numberOfAffectedRows) {
+  .then(numberOfAffectedRows => {
     console.log(numberOfAffectedRows);
   });
 ```
 
-> You can also give raw expressions and subqueries as values like this:
+> You can also give raw expressions, subqueries and `ref()` as values like this:
 
 ```js
 Person
   .query()
   .patch({
     age: Person.query().avg('age'),
-    firstName: Person.raw("'Jenni' || 'fer'")
+    firstName: Person.raw("'Jenni' || 'fer'"),
+    oldLastName: ref('lastName')
   });
 ```
 
@@ -583,7 +644,7 @@ If validation fails the Promise is rejected with a [`ValidationError`](#validati
 
 NOTE: The return value of the query will be the number of affected rows. If you want to patch a single row and
 retrieve the patched row as a result, you may want to use the [`patchAndFetchById`](#patchandfetchbyid) method
-or *take a look at [this recipe](#postgresql-returning-tricks) if you're using Postgres*.
+or *take a look at [this recipe](#postgresql-quot-returning-quot-tricks) if you're using Postgres*.
 
 ##### Arguments
 
@@ -603,14 +664,14 @@ Type|Description
 #### patchAndFetchById
 
 ```js
-var builder = queryBuilder.patchAndFetchById(id, modelOrObject);
+const builder = queryBuilder.patchAndFetchById(id, modelOrObject);
 ```
 
 ```js
 Person
   .query()
   .patchAndFetchById(134, {age: 24})
-  .then(function (updatedModel) {
+  .then(updatedModel => {
     console.log(updatedModel.firstName);
   });
 ```
@@ -635,7 +696,7 @@ but an error isn't thrown if the patch object doesn't contain all required prope
 If validation fails the Promise is rejected with a [`ValidationError`](#validationerror).
 
 NOTE: On postgresql you can just chain [`first()`](#first) and [`returning('*')`](#returning) to the normal [`patch`](#patch) method
-to get the same result without an additional query. See [this recipe](#postgresql-returning-tricks) for some examples.
+to get the same result without an additional query. See [this recipe](#postgresql-quot-returning-quot-tricks) for some examples.
 
 ##### Arguments
 
@@ -656,14 +717,14 @@ Type|Description
 #### patchAndFetch
 
 ```js
-var builder = queryBuilder.patchAndFetch(modelOrObject);
+const builder = queryBuilder.patchAndFetch(modelOrObject);
 ```
 
 ```js
 person
   .$query()
   .patchAndFetch({age: 24})
-  .then(function (updatedModel) {
+  .then(updatedModel => {
     console.log(updatedModel.firstName);
   });
 ```
@@ -689,7 +750,7 @@ but an error isn't thrown if the patch object doesn't contain all required prope
 If validation fails the Promise is rejected with a [`ValidationError`](#validationerror).
 
 NOTE: On postgresql you can just chain [`first()`](#first) and [`returning('*')`](#returning) to the normal [`patch`](#patch) method
-to get the same result without an additional query. See [this recipe](#postgresql-returning-tricks) for some examples.
+to get the same result without an additional query. See [this recipe](#postgresql-quot-returning-quot-tricks) for some examples.
 
 ##### Arguments
 
@@ -709,7 +770,7 @@ Type|Description
 #### delete
 
 ```js
-var builder = queryBuilder.delete();
+const builder = queryBuilder.delete();
 ```
 
 ```js
@@ -717,7 +778,7 @@ Person
   .query()
   .delete()
   .where('age', '>', 100)
-  .then(function (numberOfDeletedRows) {
+  .then(numberOfDeletedRows => {
     console.log('removed', numberOfDeletedRows, 'people');
   });
 ```
@@ -736,14 +797,14 @@ Type|Description
 #### deleteById
 
 ```js
-var builder = queryBuilder.deleteById(id);
+const builder = queryBuilder.deleteById(id);
 ```
 
 ```js
 Person
   .query()
   .deleteById(1)
-  .then(function (numberOfDeletedRows) {
+  .then(numberOfDeletedRows => {
     console.log('removed', numberOfDeletedRows, 'people');
   });
 ```
@@ -754,7 +815,7 @@ Person
 Person
   .query()
   .deleteById([10, '20', 46])
-  .then(function (numberOfDeletedRows) {
+  .then(numberOfDeletedRows => {
     console.log('removed', numberOfDeletedRows, 'people');
   });
 ```
@@ -779,7 +840,7 @@ Type|Description
 #### relate
 
 ```js
-var builder = queryBuilder.relate(ids);
+const builder = queryBuilder.relate(ids);
 ```
 
 ```js
@@ -787,10 +848,10 @@ Person
   .query()
   .where('id', 123)
   .first()
-  .then(function (person) {
+  .then(person => {
     return person.$relatedQuery('movies').relate(50);
   })
-  .then(function () {
+  .then(() => {
     console.log('movie 50 is now related to person 123 through `movies` relation');
   });
 ```
@@ -801,7 +862,7 @@ Person
 person
   .$relatedQuery('movies')
   .relate([50, 60, 70])
-  .then(function () {
+  .then(() => {
 
   });
 ```
@@ -812,7 +873,7 @@ person
 person
   .$relatedQuery('movies')
   .relate({foo: 50, bar: 20, baz: 10})
-  .then(function () {
+  .then(() => {
 
   });
 ```
@@ -828,7 +889,7 @@ someMovie
     id: 50,
     someExtra: "I'll be written to the join table"
   })
-  .then(function () {
+  .then(() => {
 
   });
 ```
@@ -858,7 +919,7 @@ Type|Description
 #### unrelate
 
 ```js
-var builder = queryBuilder.unrelate();
+const builder = queryBuilder.unrelate();
 ```
 
 ```js
@@ -866,10 +927,10 @@ Person
   .query()
   .where('id', 123)
   .first()
-  .then(function (person) {
+  .then(person => {
     return person.$relatedQuery('movies').unrelate().where('id', 50);
   })
-  .then(function () {
+  .then(() => {
     console.log('movie 50 is no longer related to person 123 through `movies` relation');
   });
 ```
@@ -1203,12 +1264,13 @@ Type|Description
 
 #### joinRelation
 
-Joins a relation. The joined table is aliased with the relation's name. You can change the alias by providing an
-object `{alias: 'someAlias'}` as the second argument. Providing `{alias: false}` will use the original table name.
+Joins a set of relations described by `relationExpression`. See the examples for more info.
 
 ```js
-var builder = queryBuilder.joinRelation(relationName, opt);
+const builder = queryBuilder.joinRelation(relationExpression, opt);
 ```
+
+> Join one relation:
 
 ```js
 Person
@@ -1217,12 +1279,58 @@ Person
   .where('pets.species', 'dog');
 ```
 
+> Give an alias for a single relation:
+
+```js
+Person
+  .query()
+  .joinRelation('pets', {alias: 'p'})
+  .where('p.species', 'dog');
+```
+
+> Join two relations:
+
+```js
+Person
+  .query()
+  .joinRelation('[pets, parent]')
+  .where('pets.species', 'dog');
+  .where('parent.name', 'Arnold')
+```
+
+> Join two multiple and nested relations. Note that when referring to nested relations
+> `:` must be used as a separator instead of `.`. This limitation comes from the way
+> knex parses table references.
+
+```js
+Person
+  .query()
+  .select('Person.id', 'parent:parent.name as grandParentName')
+  .joinRelation('[pets, parent.[pets, parent]]')
+  .where('parent:pets.species', 'dog');
+```
+
+> Give aliases for a bunch of relations:
+
+```js
+Person
+  .query()
+  .select('Person.id', 'pr:pr.name as grandParentName')
+  .joinRelation('[pets, parent.[pets, parent]]', {
+    aliases: {
+      parent: 'pr',
+      pets: 'pt'
+    }
+  })
+  .where('pr:pt.species', 'dog');
+```
+
 ##### Arguments
 
 Argument|Type|Description
 --------|----|--------------------
-relationName|string|The name of the relation in [`relationMappings`](#relationmappings).
-opt|object|Optional options.
+relationExpression|[`RelationExpression`](#relationexpression)|An expression describing which relations to join.
+opt|object|Optional options. See the examples.
 
 ##### Return value
 
@@ -1235,224 +1343,49 @@ Type|Description
 
 #### innerJoinRelation
 
-Joins a relation. The joined table is aliased with the relation's name. You can change the alias by providing an
-object `{alias: 'someAlias'}` as the second argument. Providing `{alias: false}` will use the original table name.
-
-```js
-var builder = queryBuilder.innerJoinRelation(relationName, opt);
-```
-
-```js
-Person
-  .query()
-  .innerJoinRelation('pets')
-  .where('pets.species', 'dog');
-```
-
-##### Arguments
-
-Argument|Type|Description
---------|----|--------------------
-relationName|string|The name of the relation in [`relationMappings`](#relationmappings).
-opt|object|Optional options.
-
-##### Return value
-
-Type|Description
-----|-----------------------------
-[`QueryBuilder`](#querybuilder)|`this` query builder for chaining.
+Alias for [`joinRelation`](#joinrelation).
 
 
 
 
 #### outerJoinRelation
 
-Joins a relation. The joined table is aliased with the relation's name. You can change the alias by providing an
-object `{alias: 'someAlias'}` as the second argument. Providing `{alias: false}` will use the original table name.
-
-```js
-var builder = queryBuilder.outerJoinRelation(relationName, opt);
-```
-
-```js
-Person
-  .query()
-  .outerJoinRelation('pets')
-  .where('pets.species', 'dog');
-```
-
-##### Arguments
-
-Argument|Type|Description
---------|----|--------------------
-relationName|string|The name of the relation in [`relationMappings`](#relationmappings).
-opt|object|Optional options.
-
-##### Return value
-
-Type|Description
-----|-----------------------------
-[`QueryBuilder`](#querybuilder)|`this` query builder for chaining.
+Outer join version of the [`joinRelation`](#joinrelation) method.
 
 
 
 
 #### leftJoinRelation
 
-Joins a relation. The joined table is aliased with the relation's name. You can change the alias by providing an
-object `{alias: 'someAlias'}` as the second argument. Providing `{alias: false}` will use the original table name.
-
-```js
-var builder = queryBuilder.leftJoinRelation(relationName, opt);
-```
-
-```js
-Person
-  .query()
-  .leftJoinRelation('pets')
-  .where('pets.species', 'dog');
-```
-
-##### Arguments
-
-Argument|Type|Description
---------|----|--------------------
-relationName|string|The name of the relation in [`relationMappings`](#relationmappings).
-opt|object|Optional options.
-
-##### Return value
-
-Type|Description
-----|-----------------------------
-[`QueryBuilder`](#querybuilder)|`this` query builder for chaining.
+Left join version of the [`joinRelation`](#joinrelation) method.
 
 
 
 
 #### leftOuterJoinRelation
 
-Joins a relation. The joined table is aliased with the relation's name. You can change the alias by providing an
-object `{alias: 'someAlias'}` as the second argument. Providing `{alias: false}` will use the original table name.
-
-```js
-var builder = queryBuilder.leftOuterJoinRelation(relationName, opt);
-```
-
-```js
-Person
-  .query()
-  .leftOuterJoinRelation('pets')
-  .where('pets.species', 'dog');
-```
-
-##### Arguments
-
-Argument|Type|Description
---------|----|--------------------
-relationName|string|The name of the relation in [`relationMappings`](#relationmappings).
-opt|object|Optional options.
-
-##### Return value
-
-Type|Description
-----|-----------------------------
-[`QueryBuilder`](#querybuilder)|`this` query builder for chaining.
+Left outer join version of the [`joinRelation`](#joinrelation) method.
 
 
 
 
 #### rightJoinRelation
 
-Joins a relation. The joined table is aliased with the relation's name. You can change the alias by providing an
-object `{alias: 'someAlias'}` as the second argument. Providing `{alias: false}` will use the original table name.
-
-```js
-var builder = queryBuilder.rightJoinRelation(relationName, opt);
-```
-
-```js
-Person
-  .query()
-  .rightJoinRelation('pets')
-  .where('pets.species', 'dog');
-```
-
-##### Arguments
-
-Argument|Type|Description
---------|----|--------------------
-relationName|string|The name of the relation in [`relationMappings`](#relationmappings).
-opt|object|Optional options.
-
-##### Return value
-
-Type|Description
-----|-----------------------------
-[`QueryBuilder`](#querybuilder)|`this` query builder for chaining.
+Right join version of the [`joinRelation`](#joinrelation) method.
 
 
 
 
 #### rightOuterJoinRelation
 
-Joins a relation. The joined table is aliased with the relation's name. You can change the alias by providing an
-object `{alias: 'someAlias'}` as the second argument. Providing `{alias: false}` will use the original table name.
-
-```js
-var builder = queryBuilder.rightOuterJoinRelation(relationName, opt);
-```
-
-```js
-Person
-  .query()
-  .rightOuterJoinRelation('pets')
-  .where('pets.species', 'dog');
-```
-
-##### Arguments
-
-Argument|Type|Description
---------|----|--------------------
-relationName|string|The name of the relation in [`relationMappings`](#relationmappings).
-opt|object|Optional options.
-
-##### Return value
-
-Type|Description
-----|-----------------------------
-[`QueryBuilder`](#querybuilder)|`this` query builder for chaining.
+Left outer join version of the [`joinRelation`](#joinrelation) method.
 
 
 
 
 #### fullOuterJoinRelation
 
-Joins a relation. The joined table is aliased with the relation's name. You can change the alias by providing an
-object `{alias: 'someAlias'}` as the second argument. Providing `{alias: false}` will use the original table name.
-
-```js
-var builder = queryBuilder.fullOuterJoinRelation(relationName, opt);
-```
-
-```js
-Person
-  .query()
-  .fullOuterJoinRelation('pets')
-  .where('pets.species', 'dog');
-```
-
-##### Arguments
-
-Argument|Type|Description
---------|----|--------------------
-relationName|string|The name of the relation in [`relationMappings`](#relationmappings).
-opt|object|Optional options.
-
-##### Return value
-
-Type|Description
-----|-----------------------------
-[`QueryBuilder`](#querybuilder)|`this` query builder for chaining.
+Full outer join version of the [`joinRelation`](#joinrelation) method.
 
 
 
@@ -2179,7 +2112,7 @@ Type|Description
 #### whereInComposite
 
 ```js
-var builder = queryBuilder.whereInComposite(columns, values);
+const builder = queryBuilder.whereInComposite(columns, values);
 ```
 
 ```js
@@ -2212,21 +2145,21 @@ Type|Description
 #### whereJsonEquals
 
 ```js
-var builder = queryBuilder.whereJsonEquals(fieldExpression, jsonObjectOrFieldExpression);
+const builder = queryBuilder.whereJsonEquals(fieldExpression, jsonObjectOrFieldExpression);
 ```
 
 ```js
 Person
   .query()
   .whereJsonEquals('additionalData:myDogs', 'additionalData:dogsAtHome')
-  .then(function (people) {
+  .then(people => {
     // oh joy! these people have all their dogs at home!
   });
 
 Person
   .query()
   .whereJsonEquals('additionalData:myDogs[0]', { name: "peter"})
-  .then(function (people) {
+  .then(people => {
     // these people's first dog name is "peter" and the dog has no other
     // attributes, but its name
   });
@@ -2283,7 +2216,7 @@ var builder = queryBuilder.whereJsonSupersetOf(fieldExpression, jsonObjectOrFiel
 Person
   .query()
   .whereJsonSupersetOf('additionalData:myDogs', 'additionalData:dogsAtHome')
-  .then(function (people) {
+  .then(people => {
     // These people have all or some of their dogs at home. Person might have some
     // additional dogs in their custody since myDogs is supreset of dogsAtHome.
   });
@@ -2291,7 +2224,7 @@ Person
 Person
   .query()
   .whereJsonSupersetOf('additionalData:myDogs[0]', { name: "peter"})
-  .then(function (people) {
+  .then(people => {
     // These people's first dog name is "peter", but the dog might have
     // additional attributes as well.
   });
@@ -2373,7 +2306,7 @@ See [`whereJsonSupersetOf`](#wherejsonsupersetof)
 #### whereJsonSubsetOf
 
 ```js
-var builder = queryBuilder.whereJsonSubsetOf(fieldExpression, jsonObjectOrFieldExpression);
+const builder = queryBuilder.whereJsonSubsetOf(fieldExpression, jsonObjectOrFieldExpression);
 ```
 
 Where left hand json field reference is a subset of the right hand json value or reference.
@@ -2422,7 +2355,7 @@ See [`whereJsonSubsetOf`](#wherejsonsubsetof)
 #### whereJsonIsArray
 
 ```js
-var builder = queryBuilder.whereJsonIsArray(fieldExpression);
+const builder = queryBuilder.whereJsonIsArray(fieldExpression);
 ```
 
 Where json field reference is an array.
@@ -2466,7 +2399,7 @@ See [`whereJsonIsArray`](#wherejsonisarray)
 #### whereJsonIsObject
 
 ```js
-var builder = queryBuilder.whereJsonIsObject(fieldExpression);
+const builder = queryBuilder.whereJsonIsObject(fieldExpression);
 ```
 
 Where json field reference is an object.
@@ -2508,7 +2441,7 @@ See [`whereJsonIsObject`](#wherejsonisobject)
 #### whereJsonHasAny
 
 ```js
-var builder = queryBuilder.whereJsonHasAny(fieldExpression, keys);
+const builder = queryBuilder.whereJsonHasAny(fieldExpression, keys);
 ```
 
 Where any of given strings is found from json object key(s) or array items.
@@ -2539,7 +2472,7 @@ See [`whereJsonHasAny`](#wherejsonhasany)
 #### whereJsonHasAll
 
 ```js
-var builder = queryBuilder.whereJsonHasAll(fieldExpression, keys);
+const builder = queryBuilder.whereJsonHasAll(fieldExpression, keys);
 ```
 
 Where all of given strings are found from json object key(s) or array items.
@@ -2570,7 +2503,7 @@ See [`whereJsonHasAll`](#wherejsonhasall)
 #### whereJsonField
 
 ```js
-var builder = queryBuilder.whereJsonField(fieldExpression, operator, value);
+const builder = queryBuilder.whereJsonField(fieldExpression, operator, value);
 ```
 
 Where referred json field value casted to same type with value fulfill given operand.
@@ -2620,7 +2553,7 @@ See [`whereJsonField`](#wherejsonfield)
 #### context
 
 ```js
-var builder = queryBuilder.context(queryContext);
+const builder = queryBuilder.context(queryContext);
 ```
 
 > You can set the context like this:
@@ -2644,9 +2577,9 @@ var context = builder.context();
 Person
   .query()
   .context({
-    runBefore: function (builder) {},
-    runAfter: function (builder) {},
-    onBuild: function (builder) {}
+    runBefore: (builder) => {},
+    runAfter: (builder) => {},
+    onBuild: (builder) => {}
   });
 ```
 
@@ -2658,7 +2591,7 @@ Person
   .query()
   .eager('[movies, children.movies]')
   .context({
-    onBuild: function (builder) {
+    onBuild: (builder) => {
       builder.withSchema('someSchema');
     }
   });
@@ -2700,7 +2633,7 @@ Type|Description
 #### mergeContext
 
 ```js
-var builder = queryBuilder.mergeContext(queryContext);
+const builder = queryBuilder.mergeContext(queryContext);
 ```
 
 Merges values into the query context.
@@ -2726,7 +2659,7 @@ Type|Description
 #### reject
 
 ```js
-var builder = queryBuilder.reject(reason);
+const builder = queryBuilder.reject(reason);
 ```
 
 Skips the database query and "fakes" an error result.
@@ -2749,7 +2682,7 @@ Type|Description
 #### resolve
 
 ```js
-var builder = queryBuilder.resolve(value);
+const builder = queryBuilder.resolve(value);
 ```
 
 Skips the database query and "fakes" a result.
@@ -2772,7 +2705,7 @@ Type|Description
 #### isExecutable
 
 ```js
-var executable = queryBuilder.isExecutable();
+const executable = queryBuilder.isExecutable();
 ```
 
 Returns false if this query will never be executed.
@@ -2794,21 +2727,21 @@ boolean|false if the query will never be executed.
 #### runBefore
 
 ```js
-var builder = queryBuilder.runBefore(runBefore);
+const builder = queryBuilder.runBefore(runBefore);
 ```
 
 ```js
-var query = Person.query();
+const query = Person.query();
 
 query
- .runBefore(function () {
+ .runBefore(() => {
    console.log('hello 1');
 
-   return Promise.delay(10).then(function () {
+   return Promise.delay(10).then(() => {
      console.log('hello 2');
    });
  })
- .runBefore(function () {
+ .runBefore(() => {
    console.log('hello 3');
  });
 
@@ -2825,7 +2758,7 @@ chained like [`then`](#then) methods of a promise.
 
 Argument|Type|Description
 --------|----|-------|------------
-runBefore|function(, [`QueryBuilder`](#querybuilder))|The function to be executed.
+runBefore|function(any, [`QueryBuilder`](#querybuilder))|The function to be executed.
 
 ##### Return value
 
@@ -2839,17 +2772,17 @@ Type|Description
 #### onBuild
 
 ```js
-var builder = queryBuilder.onBuild(onBuild);
+const builder = queryBuilder.onBuild(onBuild);
 ```
 
 ```js
-var query = Person.query();
+const query = Person.query();
 
 query
- .onBuild(function (builder) {
+ .onBuild(builder => {
    builder.where('id', 1);
  })
- .onBuild(function (builder) {
+ .onBuild(builder => {
    builder.orWhere('id', 2);
  });
 ```
@@ -2860,7 +2793,7 @@ after [`runBefore`](#runbefore) methods but before [`runAfter`](#runafter) metho
 If you need to modify the SQL query at query build time, this is the place to do it. You shouldn't
 modify the query in any of the `run` methods.
 
-Unlike the runmethods these must be synchronous. Also you should not register any runmethods
+Unlike the run methods these must be synchronous. Also you should not register any run methods
 from these. You should _only_ call the query building methods of the builder provided as a parameter.
 
 ##### Arguments
@@ -2881,22 +2814,22 @@ Type|Description
 #### runAfter
 
 ```js
-var builder = queryBuilder.runAfter(runAfter);
+const builder = queryBuilder.runAfter(runAfter);
 ```
 
 ```js
-var query = Person.query();
+const query = Person.query();
 
 query
- .runAfter(function (models, queryBuilder) {
+ .runAfter((models, queryBuilder) => {
    return models;
  })
- .runAfter(function (models, queryBuilder) {
+ .runAfter((models, queryBuilder) => {
    models.push(Person.fromJson({firstName: 'Jennifer'}));
  });
 
-query.then(function (models) {
-  var jennifer = models[models.length - 1];
+query.then(models => {
+  const jennifer = models[models.length - 1];
 });
 ```
 
@@ -2924,7 +2857,7 @@ Type|Description
 #### eagerAlgorithm
 
 ```js
-var builder = queryBuilder.eagerAlgorithm(algo);
+const builder = queryBuilder.eagerAlgorithm(algo);
 ```
 
 ```js
@@ -2955,7 +2888,7 @@ Type|Description
 #### eager
 
 ```js
-var builder = queryBuilder.eager(relationExpression, filters);
+const builder = queryBuilder.eager(relationExpression, filters);
 ```
 
 ```js
@@ -2964,7 +2897,7 @@ var builder = queryBuilder.eager(relationExpression, filters);
 Person
   .query()
   .eager('children.[pets, movies]')
-  .then(function (people) {
+  .then(people => {
     console.log(people[0].children[0].pets[0].name);
     console.log(people[0].children[0].movies[0].id);
   });
@@ -2977,17 +2910,17 @@ Person
 Person
   .query()
   .eager('children(orderByAge).[pets(onlyDogs, orderByName), movies]', {
-    orderByAge: function (builder) {
+    orderByAge: (builder) => {
       builder.orderBy('age');
     },
-    orderByName: function (builder) {
+    orderByName: (builder) => {
       builder.orderBy('name');
     },
-    onlyDogs: function (builder) {
+    onlyDogs: (builder) => {
       builder.where('species', 'dog');
     }
   })
-  .then(function (people) {
+  .then(people => {
     console.log(people[0].children[0].pets[0].name);
     console.log(people[0].children[0].movies[0].id);
   });
@@ -2999,19 +2932,19 @@ Person
 Person
   .query()
   .eager('children.[pets, movies]')
-  .modifyEager('children', function (builder) {
+  .modifyEager('children', builder => {
     // Order children by age.
     builder.orderBy('age');
   })
-  .modifyEager('children.[pets, movies]', function (builder) {
+  .modifyEager('children.[pets, movies]', builder => {
     // Only select `pets` and `movies` whose id > 10 for the children.
     builder.where('id', '>', 10);
   })
-  .modifyEager('children.movies]', function (builder) {
+  .modifyEager('children.movies]', builder => {
     // Only select 100 first movies for the children.
     builder.limit(100);
   })
-  .then(function (people) {
+  .then(people => {
     console.log(people[0].children[0].pets[0].name);
     console.log(people[0].children[0].movies[0].id);
   });
@@ -3024,7 +2957,7 @@ Person
   .query()
   .where('id', 1)
   .eager('children.children')
-  .then(function (people) {
+  .then(people => {
     console.log(people[0].children.length); // --> 10
     console.log(people[0].children[9].children.length); // --> 10
   });
@@ -3044,8 +2977,8 @@ Person
   .eager('[movies, children.pets]')
   .where('movies.name', 'like', '%terminator%')
   .where('children:pets.species', 'dog')
-  .then(function (people) {
-
+  .then(people => {
+    console.log(people);
   });
 ```
 
@@ -3112,10 +3045,61 @@ Type|Description
 
 
 
+#### mergeEager
+
+> The following queries are equivalent
+
+```js
+Person
+  .query()
+  .eager('[children.pets, movies]')
+```
+
+```js
+Person
+  .query()
+  .eager('children')
+  .mergeEager('children.pets')
+  .mergeEager('movies')
+```
+
+```js
+Person
+  .query()
+  .eager('children.pets')
+  .mergeEager('movies')
+```
+
+```js
+Person
+  .query()
+  .mergeEager('children.pets')
+  .mergeEager('movies')
+```
+
+Just like [eager](#eager) but instead of replacing query builder's eager expression this method merges the given
+expression to the existing expression.
+
+##### Arguments
+
+Argument|Type|Description
+--------|----|-------|------------
+relationExpression|string&#124;[`RelationExpression`](#relationexpression)|The eager expression
+filters|Object&lt;string, function([`QueryBuilder`](#querybuilder))&gt;|The named filter functions for the expression
+
+##### Return value
+
+Type|Description
+----|-----------------------------
+[`QueryBuilder`](#querybuilder)|`this` query builder for chaining.
+
+
+
+
 #### allowEager
 
 ```js
-var builder = queryBuilder.allowEager(relationExpression);
+const builder = queryBuilder.allowEager(relationExpression);
 ```
 
 ```js
@@ -3123,9 +3107,6 @@ Person
   .query()
   .allowEager('[children.pets, movies]')
   .eager(req.query.eager)
-  .then(function () {
-
-  });
 ```
 
 Sets the allowed eager expression.
@@ -3156,7 +3137,7 @@ Type|Description
 #### modifyEager
 
 ```js
-var builder = queryBuilder.modifyEager(pathExpression, modifier);
+const builder = queryBuilder.modifyEager(pathExpression, modifier);
 ```
 
 Can be used to modify the eager queries.
@@ -3173,9 +3154,6 @@ Person
   .modifyEager('children.pets', builder => {
     builder.where('age', '>', 10);
   })
-  .then(function () {
-
-  });
 ```
 
 > The path expression can have multiple targets. The next example sorts both the
@@ -3188,9 +3166,6 @@ Person
   .modifyEager('children.[pets, movies]', builder => {
     builder.orderBy('id');
   })
-  .then(function () {
-
-  });
 ```
 
 > This example only selects movies whose name contains the word 'Predator':
@@ -3202,9 +3177,6 @@ Person
   .modifyEager('[children.movies, movies]', builder => {
     builder.where('name', 'like', '%Predator%');
   })
-  .then(function () {
-
-  });
 ```
 
 ##### Arguments
@@ -3232,7 +3204,7 @@ Alias for [modifyEager](#modifyeager).
 #### allowInsert
 
 ```js
-var builder = queryBuilder.allowInsert(relationExpression);
+const builder = queryBuilder.allowInsert(relationExpression);
 ```
 
 ```js
@@ -3252,9 +3224,6 @@ Person
       }]
     }]
   })
-  .then(function () {
-
-  });
 ```
 
 Sets the allowed tree of relations to insert using [`insertGraph`](#insertgraph) method.
@@ -3284,7 +3253,7 @@ Type|Description
 #### modelClass
 
 ```js
-var modelClass = queryBuilder.modelClass();
+const modelClass = queryBuilder.modelClass();
 ```
 
 Gets the Model subclass this builder is bound to.
@@ -3301,7 +3270,7 @@ Type|Description
 #### toString
 
 ```js
-var sql = queryBuilder.toString();
+const sql = queryBuilder.toString();
 ```
 
 Returns the SQL string. If this query builder executes multiple queries, only the first query's SQL is returned.
@@ -3318,7 +3287,7 @@ string|The SQL this query builder will build
 #### toSql
 
 ```js
-var sql = queryBuilder.toSql();
+const sql = queryBuilder.toSql();
 ```
 
 Returns the SQL string. If this query builder executes multiple queries, only the first query's SQL is returned.
@@ -3335,7 +3304,7 @@ string|The SQL this query builder will build
 #### skipUndefined
 
 ```js
-var builder = queryBuilder.skipUndefined();
+const builder = queryBuilder.skipUndefined();
 ```
 
 If this method is called for a builder then undefined values passed to the query builder methods don't cause
@@ -3362,7 +3331,7 @@ Type|Description
 #### transacting
 
 ```js
-var builder = queryBuilder.transacting(transaction);
+const builder = queryBuilder.transacting(transaction);
 ```
 
 Sets the transaction for a query.
@@ -3385,7 +3354,7 @@ Type|Description
 #### clone
 
 ```js
-var clone = queryBuilder.clone();
+const clone = queryBuilder.clone();
 ```
 
 Create a clone of this builder.
@@ -3401,7 +3370,7 @@ Type|Description
 #### execute
 
 ```js
-var promise = queryBuilder.execute();
+const promise = queryBuilder.execute();
 ```
 
 Executes the query and returns a Promise.
@@ -3418,7 +3387,7 @@ Type|Description
 #### then
 
 ```js
-var promise = queryBuilder.then(successHandler, errorHandler);
+const promise = queryBuilder.then(successHandler, errorHandler);
 ```
 
 Executes the query and returns a Promise.
@@ -3443,7 +3412,7 @@ Type|Description
 #### map
 
 ```js
-var promise = queryBuilder.map(mapper);
+const promise = queryBuilder.map(mapper);
 ```
 
 Executes the query and calls `map(mapper)` for the returned promise.
@@ -3467,7 +3436,7 @@ Type|Description
 #### catch
 
 ```js
-var promise = queryBuilder.catch(errorHandler);
+const promise = queryBuilder.catch(errorHandler);
 ```
 
 Executes the query and calls `catch(errorHandler)` for the returned promise.
@@ -3491,7 +3460,7 @@ Type|Description
 #### return
 
 ```js
-var promise = queryBuilder.return(returnValue);
+const promise = queryBuilder.return(returnValue);
 ```
 
 Executes the query and calls `return(returnValue)` for the returned promise.
@@ -3515,7 +3484,7 @@ Type|Description
 #### bind
 
 ```js
-var promise = queryBuilder.bind(returnValue);
+const promise = queryBuilder.bind(returnValue);
 ```
 
 Executes the query and calls `bind(context)` for the returned promise.
@@ -3539,7 +3508,7 @@ Type|Description
 #### asCallback
 
 ```js
-var promise = queryBuilder.asCallback(callback);
+const promise = queryBuilder.asCallback(callback);
 ```
 
 Executes the query and calls `asCallback(callback)` for the returned promise.
@@ -3563,7 +3532,7 @@ Type|Description
 #### nodeify
 
 ```js
-var promise = queryBuilder.nodeify(callback);
+const promise = queryBuilder.nodeify(callback);
 ```
 
 Executes the query and calls `nodeify(callback)` for the returned promise.
@@ -3586,18 +3555,18 @@ Type|Description
 #### resultSize
 
 ```js
-var promise = queryBuilder.resultSize();
+const promise = queryBuilder.resultSize();
 ```
 
 ```js
-var query = Person
+const query = Person
   .query()
   .where('age', '>', 20);
 
 Promise.all([
   query.resultSize(),
   query.offset(100).limit(50)
-]).spread(function (total, models) {
+]).spread((total, models) => {
   ...
 });
 ```
@@ -3618,7 +3587,7 @@ Type|Description
 #### page
 
 ```js
-var builder = queryBuilder.page(page, pageSize);
+const builder = queryBuilder.page(page, pageSize);
 ```
 
 ```js
@@ -3626,13 +3595,21 @@ Person
   .query()
   .where('age', '>', 20)
   .page(5, 100)
-  .then(function (result) {
+  .then(result => {
     console.log(result.results.length); // --> 100
     console.log(result.total); // --> 3341
   });
 ```
 
-Only returns the given page of results.
+Two queries queries are performed by this method: the actual query and a query to get the `total` count.
+
+Mysql has the `SQL_CALC_FOUND_ROWS` option and `FOUND_ROWS()` function that can be used to calculate the result size,
+but according to my tests and [the interwebs](http://www.google.com/search?q=SQL_CALC_FOUND_ROWS+performance) the
+performance is significantly worse than just executing a separate count query.
+
+Postgresql has window functions that can be used to get the total count like this `select count(*) over () as total`.
+The problem with this is that if the result set is empty, we don't get the total count either.
+(If someone can figure out a way around this, a PR is very welcome).
 
 ##### Arguments
 
@@ -3654,7 +3631,7 @@ Type|Description
 #### range
 
 ```js
-var builder = queryBuilder.range(start, end);
+const builder = queryBuilder.range(start, end);
 ```
 
 ```js
@@ -3662,13 +3639,37 @@ Person
   .query()
   .where('age', '>', 20)
   .range(0, 100)
-  .then(function (result) {
+  .then(result => {
+    console.log(result.results.length); // --> 101
+    console.log(result.total); // --> 3341
+  });
+```
+
+> `range` can be called without arguments if you want to specify the limit and offset explicitly:
+
+```js
+Person
+  .query()
+  .where('age', '>', 20)
+  .limit(10)
+  .range()
+  .then(result => {
     console.log(result.results.length); // --> 101
     console.log(result.total); // --> 3341
   });
 ```
 
 Only returns the given range of results.
+
+Two queries queries are performed by this method: the actual query and a query to get the `total` count.
+
+Mysql has the `SQL_CALC_FOUND_ROWS` option and `FOUND_ROWS()` function that can be used to calculate the result size,
+but according to my tests and [the interwebs](http://www.google.com/search?q=SQL_CALC_FOUND_ROWS+performance) the
+performance is significantly worse than just executing a separate count query.
+
+Postgresql has window functions that can be used to get the total count like this `select count(*) over () as total`.
+The problem with this is that if the result set is empty, we don't get the total count either.
+(If someone can figure out a way around this, a PR is very welcome).
 
 ##### Arguments
 
@@ -3690,7 +3691,7 @@ Type|Description
 #### pluck
 
 ```js
-var builder = queryBuilder.pluck(propertyName);
+const builder = queryBuilder.pluck(propertyName);
 ```
 
 ```js
@@ -3698,7 +3699,7 @@ Person
   .query()
   .where('age', '>', 20)
   .pluck('firstName')
-  .then(function (firstNames) {
+  .then(firstNames => {
     console.log(typeof firstNames[0]); // --> string
   });
 ```
@@ -3724,14 +3725,14 @@ Type|Description
 #### first
 
 ```js
-var builder = queryBuilder.first();
+const builder = queryBuilder.first();
 ```
 
 ```js
 Person
   .query()
   .first()
-  .then(function (firstPerson) {
+  .then(firstPerson => {
     console.log(person.age);
   });
 ```
@@ -3758,12 +3759,12 @@ var builder = queryBuilder.traverse(modelClass, traverser);
 Person
   .query()
   .eager('pets')
-  .traverse(function (model, parentModel, relationName) {
+  .traverse((model, parentModel, relationName) => {
     delete model.id;
   })
-  .then(function (persons) {
-    console.log(persons[0].id); // --> undefined
-    console.log(persons[0].pets[0].id); // --> undefined
+  .then(people => {
+    console.log(people[0].id); // --> undefined
+    console.log(people[0].pets[0].id); // --> undefined
   });
 ```
 
@@ -3771,10 +3772,10 @@ Person
 Person
   .query()
   .eager('pets')
-  .traverse(Animal, function (animal, parentModel, relationName) {
+  .traverse(Animal, (animal, parentModel, relationName) => {
     delete animal.id;
   })
-  .then(function (persons) {
+  .then(persons => {
     console.log(persons[0].id); // --> 1
     console.log(persons[0].pets[0].id); // --> undefined
   });
@@ -3805,7 +3806,7 @@ Type|Description
 #### pick
 
 ```js
-var builder = queryBuilder.pick(modelClass, properties);
+const builder = queryBuilder.pick(modelClass, properties);
 ```
 
 > There are two ways to call this methods:
@@ -3853,7 +3854,7 @@ Type|Description
 #### omit
 
 ```js
-var builder = queryBuilder.omit(modelClass, properties);
+const builder = queryBuilder.omit(modelClass, properties);
 ```
 
 > There are two ways to call this methods:
@@ -3898,152 +3899,8 @@ Type|Description
 
 
 
-#### call
-
-```js
-var builder = queryBuilder.call(func);
-```
-
-```js
-Person
-  .query()
-  .call(function (builder) {
-     if (someCondition) {
-       builder.where('something', someValue);
-     }
-   });
-```
-
-Calls the given function immediatelyand passes `this` as an argument.
-
-##### Arguments
-
-Argument|Type|Description
---------|-------|------------
-func|function|
-
-##### Return value
-
-Type|Description
-----|-----------------------------
-[`QueryBuilder`](#querybuilder)|`this` query builder for chaining
-
-
-
-
 
 ## Model
-
-> Defining a model using ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-module.exports = Person;
-
-// Table name is the only required property.
-Person.tableName = 'Person';
-
-// Optional JSON schema. This is not the database schema!
-// Nothing is generated based on this. This is only used
-// for validation. Whenever a model instance is created
-// it is checked against this schema.
-// http://json-schema.org/.
-Person.jsonSchema = {
-  type: 'object',
-  required: ['firstName', 'lastName'],
-
-  properties: {
-    id: {type: 'integer'},
-    parentId: {type: ['integer', 'null']},
-    firstName: {type: 'string', minLength: 1, maxLength: 255},
-    lastName: {type: 'string', minLength: 1, maxLength: 255},
-    age: {type: 'number'},
-
-    // Properties defined as objects or arrays are
-    // automatically converted to JSON strings when
-    // writing to database and back to objects and arrays
-    // when reading from database. To override this
-    // behaviour, you can override the
-    // Person.jsonAttributes property.
-    address: {
-      type: 'object',
-      properties: {
-        street: {type: 'string'},
-        city: {type: 'string'},
-        zipCode: {type: 'string'}
-      }
-    }
-  }
-};
-
-// This object defines the relations to other models.
-Person.relationMappings = {
-  pets: {
-    relation: Model.HasManyRelation,
-    // The related model. This can be either a Model
-    // subclass constructor or an absolute file path
-    // to a module that exports one. We use the file
-    // path version in this example to prevent require
-    // loops.
-    modelClass: __dirname + '/Animal',
-    join: {
-      from: 'Person.id',
-      to: 'Animal.ownerId'
-    }
-  },
-
-  movies: {
-    relation: Model.ManyToManyRelation,
-    modelClass: __dirname + '/Movie',
-    join: {
-      from: 'Person.id',
-      // ManyToMany relation needs the `through` object
-      // to describe the join table.
-      through: {
-        from: 'Person_Movie.actorId',
-        to: 'Person_Movie.movieId'
-
-        // If you have a model class for the join table
-        // you can specify it like this:
-        //
-        // modelClass: PersonMovie,
-
-        // Columns listed here are automatically joined
-        // to the related models on read and written to
-        // the join table instead of the related table
-        // on insert.
-        //
-        // extra: ['someExtra']
-      },
-      to: 'Movie.id'
-    }
-  },
-
-  children: {
-    relation: Model.HasManyRelation,
-    modelClass: Person,
-    join: {
-      from: 'Person.id',
-      to: 'Person.parentId'
-    }
-  },
-
-  parent: {
-    relation: Model.BelongsToOneRelation,
-    modelClass: Person,
-    join: {
-      from: 'Person.parentId',
-      to: 'Person.id'
-    }
-  }
-};
-```
-
-> Defining a model using ES6:
 
 ```js
 class Person extends Model {
@@ -4152,109 +4009,6 @@ class Person extends Model {
 }
 ```
 
-> Defining a model using ES7:
-
-```js
-class Person extends Model {
-  // Table name is the only required property.
-  static tableName = 'Person';
-
-  // Optional JSON schema. This is not the database schema!
-  // Nothing is generated based on this. This is only used
-  // for validation. Whenever a model instance is created
-  // it is checked against this schema.
-  // http://json-schema.org/.
-  static jsonSchema = {
-    type: 'object',
-    required: ['firstName', 'lastName'],
-
-    properties: {
-      id: {type: 'integer'},
-      parentId: {type: ['integer', 'null']},
-      firstName: {type: 'string', minLength: 1, maxLength: 255},
-      lastName: {type: 'string', minLength: 1, maxLength: 255},
-      age: {type: 'number'},
-
-      // Properties defined as objects or arrays are
-      // automatically converted to JSON strings when
-      // writing to database and back to objects and arrays
-      // when reading from database. To override this
-      // behaviour, you can override the
-      // Person.jsonAttributes property.
-      address: {
-        type: 'object',
-        properties: {
-          street: {type: 'string'},
-          city: {type: 'string'},
-          zipCode: {type: 'string'}
-        }
-      }
-    }
-  };
-
-  // This object defines the relations to other models.
-  static relationMappings = {
-    pets: {
-      relation: Model.HasManyRelation,
-      // The related model. This can be either a Model
-      // subclass constructor or an absolute file path
-      // to a module that exports one. We use the file
-      // path version here to prevent require loops.
-      modelClass: __dirname + '/Animal',
-      join: {
-        from: 'Person.id',
-        to: 'Animal.ownerId'
-      }
-    },
-
-    movies: {
-      relation: Model.ManyToManyRelation,
-      modelClass: __dirname + '/Movie',
-      join: {
-        from: 'Person.id',
-        // ManyToMany relation needs the `through` object
-        // to describe the join table.
-        through: {
-          from: 'Person_Movie.actorId',
-          to: 'Person_Movie.movieId'
-
-          // If you have a model class for the join table
-          // you can specify it like this:
-          //
-          // modelClass: PersonMovie,
-
-          // Columns listed here are automatically joined
-          // to the related models on read and written to
-          // the join table instead of the related table
-          // on insert.
-          //
-          // extra: ['someExtra']
-        },
-        to: 'Movie.id'
-      }
-    },
-
-    children: {
-      relation: Model.HasManyRelation,
-      modelClass: Person,
-      join: {
-        from: 'Person.id',
-        to: 'Person.parentId'
-      }
-    },
-
-    parent: {
-      relation: Model.BelongsToOneRelation,
-      modelClass: Person,
-      join: {
-        from: 'Person.parentId',
-        to: 'Person.id'
-      }
-    }
-  };
-}
-```
-
 Subclasses of this class represent database tables.
 
 ##### Model lifecycle
@@ -4295,19 +4049,6 @@ properties. All properties that start with `$` are also removed from `database` 
 
 #### tableName
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.tableName = 'Person';
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get tableName() {
@@ -4316,7 +4057,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4331,45 +4072,6 @@ Each model must set this.
 
 
 #### jsonSchema
-
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.jsonSchema = {
-  type: 'object',
-  required: ['firstName', 'lastName'],
-
-  properties: {
-    id: {type: 'integer'},
-    parentId: {type: ['integer', 'null']},
-    firstName: {type: 'string', minLength: 1, maxLength: 255},
-    lastName: {type: 'string', minLength: 1, maxLength: 255},
-    age: {type: 'number'},
-
-    // Properties defined as objects or arrays are
-    // automatically converted to JSON strings when
-    // writing to database and back to objects and arrays
-    // when reading from database. To override this
-    // behaviour, you can override the
-    // Person.jsonAttributes property.
-    address: {
-      type: 'object',
-      properties: {
-        street: {type: 'string'},
-        city: {type: 'string'},
-        zipCode: {type: 'string'}
-      }
-    }
-  }
-};
-```
-
-> ES6:
 
 ```js
 class Person extends Model {
@@ -4405,7 +4107,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4458,19 +4160,6 @@ Read more:
 
 #### idColumn
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.idColumn = 'some_column_name';
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get idColumn() {
@@ -4479,7 +4168,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4499,19 +4188,6 @@ Defaults to 'id'.
 
 #### modelPaths
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.modelPaths = [__dirname];
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get modelPaths() {
@@ -4520,7 +4196,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4540,62 +4216,6 @@ A model class can be defined for a relation in [`relationMappings`](#relationmap
 
 
 #### relationMappings
-
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.relationMappings = {
-  pets: {
-    relation: Model.HasManyRelation,
-    modelClass: Animal,
-    join: {
-      from: 'Person.id',
-      to: 'Animal.ownerId'
-    }
-  },
-
-  father: {
-    relation: Model.BelongsToOneRelation,
-    modelClass: Person,
-    join: {
-      from: 'Person.fatherId',
-      to: 'Person.id'
-    }
-  },
-
-  movies: {
-    relation: Model.ManyToManyRelation,
-    modelClass: Movie,
-    join: {
-      from: 'Person.id',
-      through: {
-        from: 'Person_Movie.actorId',
-        to: 'Person_Movie.movieId'
-
-        // If you have a model class for the join table
-        // you can specify it like this:
-        //
-        // modelClass: PersonMovie,
-
-        // Columns listed here are automatically joined
-        // to the related models on read and written to
-        // the join table instead of the related table
-        // on insert.
-        //
-        // extra: ['someExtra']
-      },
-      to: 'Movie.id'
-    }
-  }
-};
-```
-
-> ES6:
 
 ```js
 class Person extends Model {
@@ -4648,7 +4268,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4749,19 +4369,6 @@ extra|Array.&lt;string&gt;&#124;Object|Columns listed here are automatically joi
 
 #### jsonAttributes
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.jsonAttributes = ['someProp', 'someOtherProp'];
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get jsonAttributes() {
@@ -4770,7 +4377,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4792,39 +4399,6 @@ If this property is left unset all properties declared as objects or arrays in t
 
 #### virtualAttributes
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-
-Person.virtualAttributes = ['fullName', 'isFemale'];
-
-Person.prototype.fullName = function () {
-  return this.firstName + ' ' + this.lastName;
-}
-
-Object.defineProperty(Person.prototype, "isFemale", {
-  get: function () {
-    return this.gender === 'female';
-  }
-});
-
-var person = Person.fromJson({
-  firstName: 'Jennifer',
-  lastName: 'Aniston',
-  gender: 'female'
-});
-
-console.log(person.toJSON());
-// --> {"firstName": "Jennifer", "lastName": "Aniston", "isFemale": true, "fullName": "Jennifer Aniston"}
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get virtualAttributes() {
@@ -4840,7 +4414,7 @@ class Person extends Model {
   }
 }
 
-var person = Person.fromJson({
+const person = Person.fromJson({
   firstName: 'Jennifer',
   lastName: 'Aniston',
   gender: 'female'
@@ -4850,7 +4424,7 @@ console.log(person.toJSON());
 // --> {"firstName": "Jennifer", "lastName": "Aniston", "isFemale": true, "fullName": "Jennifer Aniston"}
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4865,7 +4439,7 @@ class Person extends Model {
   }
 }
 
-var person = Person.fromJson({
+const person = Person.fromJson({
   firstName: 'Jennifer',
   lastName: 'Aniston',
   gender: 'female'
@@ -4884,19 +4458,6 @@ The virtual values are not written to database. Only the "external" JSON format 
 
 #### uidProp
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.uidProp = '#id';
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get uidProp() {
@@ -4905,7 +4466,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4922,19 +4483,6 @@ Defaults to '#id'.
 
 #### uidRefProp
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.uidRefProp = '#ref';
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get uidRefProp() {
@@ -4943,7 +4491,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4960,19 +4508,6 @@ Defaults to '#ref'.
 
 #### dbRefProp
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.dbRefProp = '#dbRef';
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get dbRefProp() {
@@ -4981,7 +4516,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -4998,19 +4533,6 @@ Defaults to '#dbRef'.
 
 #### propRefRegex
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.propRefRegex = /#ref{([^\.]+)\.([^}]+)}/g;
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get propRefRegex() {
@@ -5019,7 +4541,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -5035,57 +4557,31 @@ Defaults to `/#ref{([^\.]+)\.([^}]+)}/g`.
 
 #### pickJsonSchemaProperties
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.pickJsonSchemaProperties = false;
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get pickJsonSchemaProperties() {
-    return false;
+    return true;
   }
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
-  static pickJsonSchemaProperties = false;
+  static pickJsonSchemaProperties = true;
 }
 ```
 
-If this is true (the default) only properties in `jsonSchema` are picked when inserting or updating a row
-in the database. To pick all properties, set this to false.
+If this is true only properties in `jsonSchema` are picked when inserting or updating a row
+in the database.
 
-Defaults to true.
+Defaults to false.
 
 
 
 
 #### defaultEagerAlgorithm
-
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.defaultEagerAlgorithm = Model.WhereInEagerAlgorithm;
-```
-
-> ES6:
 
 ```js
 class Person extends Model {
@@ -5095,7 +4591,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -5113,19 +4609,6 @@ Defaults to `Model.WhereInEagerAlgorithm`.
 
 #### defaultEagerOptions
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.defaultEagerOptions = {minimize: true};
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get defaultEagerOptions() {
@@ -5134,7 +4617,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -5152,19 +4635,6 @@ Defaults to `null`.
 
 #### QueryBuilder
 
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.QueryBuilder = MyCustomQueryBuilder;
-```
-
-> ES6:
-
 ```js
 class Person extends Model {
   static get QueryBuilder() {
@@ -5173,7 +4643,7 @@ class Person extends Model {
 }
 ```
 
-> ES7:
+> ESNext:
 
 ```js
 class Person extends Model {
@@ -5190,47 +4660,6 @@ You can override this to use your own [`QueryBuilder`](#querybuilder) subclass.
 
 
 
-#### RelatedQueryBuilder
-
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-Person.RelatedQueryBuilder = MyCustomQueryBuilder;
-```
-
-> ES6:
-
-```js
-class Person extends Model {
-  static get RelatedQueryBuilder() {
-    return MyCustomQueryBuilder;
-  }
-}
-```
-
-> ES7:
-
-```js
-class Person extends Model {
-  static RelatedQueryBuilder = MyCustomQueryBuilder;
-}
-```
-
-[`QueryBuilder`](#querybuilder) subclass to use in [`$relatedQuery`](#_s_relatedquery) method.
-
-This constructor is used whenever a query builder is created using the [`$relatedQuery`](#_s_relatedquery)  method.
-You can override this to use your own [`QueryBuilder`](#querybuilder) subclass.
-
-[Usage example](#custom-query-builder).
-
-
-
-
 
 ### Static methods
 
@@ -5241,8 +4670,8 @@ You can override this to use your own [`QueryBuilder`](#querybuilder) subclass.
 
 ```js
 // Get all rows.
-Person.query().then(function(allPersons) {
-  console.log('there are', allPersons.length, 'persons in the database');
+Person.query().then(people => {
+  console.log('there are', people.length, 'people in the database');
 });
 
 // Example of a more complex WHERE clause. This generates:
@@ -5251,17 +4680,17 @@ Person.query().then(function(allPersons) {
 // OR ("firstName" = 'Mark' AND "age" > 30)
 Person
   .query()
-  .where(function (builder) {
+  .where(builder => {
     builder
       .where('firstName', 'Jennifer')
       .where('age', '<', 30);
   })
-  .orWhere(function (builder) {
+  .orWhere(builder => {
     builder
       .where('firstName', 'Mark')
       .where('age', '>', 30);
   })
-  .then(function (marksAndJennifers) {
+  .then(marksAndJennifers => {
     console.log(marksAndJennifers);
   });
 
@@ -5271,7 +4700,7 @@ Person
   .query()
   .where('age', '>', 60)
   .eager('children.children.movies')
-  .then(function (oldPeople) {
+  .then(oldPeople => {
     console.log('some old person\'s grand child has appeared in',
       oldPeople[0].children[0].children[0].movies.length,
       'movies');
@@ -5283,7 +4712,7 @@ Person
 ```js
 Person.query()
   .insert({firstName: 'Sylvester', lastName: 'Stallone'})
-  .then(function (sylvester) {
+  .then(sylvester => {
     console.log(sylvester.fullName());
     // --> 'Sylvester Stallone'.
   });
@@ -5299,7 +4728,7 @@ Person
     {firstName: 'Arnold', lastName: 'Schwarzenegger'},
     {firstName: 'Sylvester', lastName: 'Stallone'}
   ])
-  .then(function (inserted) {
+  .then(inserted => {
     console.log(inserted[0].fullName()); // --> 'Arnold Schwarzenegger'
   });
 ```
@@ -5314,19 +4743,19 @@ Person
   .query()
   .update({firstName: 'Jennifer', lastName: 'Lawrence', age: 35})
   .where('id', jennifer.id)
-  .then(function (updatedJennifer) {
-    console.log('Jennifer is now', updatedJennifer.age, 'years old');
+  .then(numUpdatedRows => {
+    console.log(numUpdatedRows);
   });
 
 // This will throw assuming that `firstName` or `lastName`
 // is a required property for a Person.
-Person.query().patch({age: 100});
+Person.query().update({age: 100});
 
 // This will _not_ throw.
 Person
   .query()
   .patch({age: 100})
-  .then(function () {
+  .then(() => {
     console.log('Everyone is now 100 years old');
   });
 ```
@@ -5339,7 +4768,7 @@ Person
   .query()
   .delete()
   .where('age', '>', 90)
-  .then(function () {
+  .then(() => {
     console.log('anyone over 90 is now removed from the database');
   });
 ```
@@ -5368,13 +4797,13 @@ Type|Description
 > Get:
 
 ```js
-var knex = Person.knex();
+const knex = Person.knex();
 ```
 
 > Set:
 
 ```js
-var knex = require('knex')({
+let knex = require('knex')({
   client: 'sqlite3',
   connection: {
     filename: 'database.db'
@@ -5425,14 +4854,14 @@ Shortcut for `Person.knex().table(Person.tableName)`
 > Example:
 
 ```js
-var knex1 = require('knex')({
+const knex1 = require('knex')({
   client: 'sqlite3',
   connection: {
     filename: 'database1.db'
   }
 });
 
-var knex2 = require('knex')({
+const knex2 = require('knex')({
   client: 'sqlite3',
   connection: {
     filename: 'database2.db'
@@ -5441,20 +4870,20 @@ var knex2 = require('knex')({
 
 SomeModel.knex(null);
 
-var BoundModel1 = SomeModel.bindKnex(knex1);
-var BoundModel2 = SomeModel.bindKnex(knex2);
+const BoundModel1 = SomeModel.bindKnex(knex1);
+const BoundModel2 = SomeModel.bindKnex(knex2);
 
 // Throws since the knex instance is null.
 SomeModel.query().then();
 
 // Works.
-BoundModel1.query().then(function (models) {
+BoundModel1.query().then(models => {
  console.log(models[0] instanceof SomeModel); // --> true
  console.log(models[0] instanceof BoundModel1); // --> true
 });
 
 // Works.
-BoundModel2.query().then(function (models) {
+BoundModel2.query().then(models => {
  console.log(models[0] instanceof SomeModel); // --> true
  console.log(models[0] instanceof BoundModel2); // --> true
 });
@@ -5483,24 +4912,24 @@ function|The create model subclass constructor
 #### bindTransaction
 
 ```js
-var Person = require('./models/Person');
-var transaction;
+cons Person = require('./models/Person');
+let transaction;
 
-objection.transaction.start(Person).then(function (trx) {
+objection.transaction.start(Person).then(trx => {
   transaction = trx;
   return Person
     .bindTransaction(transaction)
     .query()
     .insert({firstName: 'Jennifer'});
-}).then(function (jennifer) {
+}).then(jennifer => {
   return Person
     .bindTransaction(transaction)
     .query()
     .patch({lastName: 'Lawrence'})
     .where('id', jennifer.id);
-}).then(function () {
+}).then(() => {
   return transaction.commit();
-}).catch(function () {
+}).catch(() => {
   return transaction.rollback();
 });
 ```
@@ -5510,47 +4939,10 @@ Alias for [`bindKnex`](#bindknex).
 
 
 
-#### extend
-
-```js
-Model.extend(subclassConstructor);
-```
-
-> ES5:
-
-```js
-function Person() {
-  Model.apply(this, arguments);
-}
-
-Model.extend(Person);
-```
-
-> ES6:
-
-```js
-class Person extends Model {
-
-}
-```
-
-Makes the given constructor a subclass of [`Model`](#querybuilder).
-
-This method can be used to do ES5 inheritance. If you are using ES6 or newer, you can just use the `class` and `extend`
-keywords and you don't need to call this method.
-
-##### Arguments
-
-Argument|Type|Description
---------|----|-------|------------
-subclassConstructor|function|The subclass's constructor.
-
-
-
 #### fromJson
 
 ```js
-var person = Person.fromJson(json, opt);
+const person = Person.fromJson(json, opt);
 ```
 
 Creates a model instance from a JSON object.
@@ -5562,7 +4954,7 @@ The object is checked against [`jsonSchema`](#jsonschema) and an exception is th
 Argument|Type|Description
 --------|----|-------------------
 json|Object|The JSON object from which to create the model.
-opt|ModelOptions|Update options.
+opt|[ModelOptions](#modeloptions)|Update options.
 
 ##### Return value
 
@@ -5576,7 +4968,7 @@ Type|Description
 #### fromDatabaseJson
 
 ```js
-var person = Person.fromDatabaseJson(row);
+const person = Person.fromDatabaseJson(row);
 ```
 
 Creates a model instance from a JSON object in database format.
@@ -5595,34 +4987,89 @@ Type|Description
 
 
 
+
+#### createValidator
+
+```js
+class BaseModel extends Model {
+  static createValidator() {
+    return new MyCustomValidator();
+  }
+}
+```
+
+> The default implementation:
+
+```js
+const AjvValidator = require('objection').AjvValidator;
+
+class Model {
+  static createValidator() {
+    return new AjvValidator({
+      onCreateAjv: (ajv) => {
+        // Here you can modify the `Ajv` instance.
+      },
+      options: {
+        allErrors: true,
+        validateSchema: false,
+        ownProperties: true,
+        v5: true
+      }
+    });
+  }
+}
+```
+
+Creates an instance of a [`Validator`](#validator) that is used to do
+all validation related stuff. This method is called only once per
+model class.
+
+You can override this method to return an instance of your custom
+validator. The custom validator doesn't need to be based on the
+`jsonSchema`. It can be anything at all as long as it implements the
+[`Validator`](#validator) interface.
+
+If you want to use the default json schema based [`AjvValidator`](#ajvvalidator) but
+want to modify it, you can use the `objection.AjvValidator` constructor. See
+the default implementation example.
+
+##### Return value
+
+Type|Description
+----|-----------------------------
+[`Validator`](#validator)|The created validator instance
+
+
+
+
 #### omitImpl
 
 ```js
-Person.omitImp = function (obj, prop) {
-  delete obj[prop];
-};
+class Person extends Model {
+  omitImpl(obj, prop) {
+    delete obj[prop];
+  }
+}
 ```
 
 Omit implementation to use.
 
-The default just sets the property to undefined for performance reasons.
-If the slight performance drop is not an issue for you, you can override
-this method to delete the property instead.
+The default implementation `delete`s the property.
 
 
 
 #### loadRelated
 
 ```js
-var promise = Person.loadRelated(models, expression, filters);
+const promise = Person.loadRelated(models, expression, filters);
 ```
 
 > Examples:
 
 ```js
-Person.loadRelated([person1, person2], 'children.pets').then(function (persons) {
-  var person1 = persons[0];
-  var person2 = persons[1];
+Person.loadRelated([person1, person2], 'children.pets').then(people => {
+  var person1 = people[0];
+  var person2 = people[1];
 });
 ```
 
@@ -5631,18 +5078,18 @@ Person.loadRelated([person1, person2], 'children.pets').then(function (persons) 
 ```js
 Person
   .loadRelated([person1, person2], 'children(orderByAge).[pets(onlyDogs, orderByName), movies]', {
-    orderByAge: function (builder) {
+    orderByAge: (builder) => {
       builder.orderBy('age');
     },
-    orderByName: function (builder) {
+    orderByName: (builder) => {
       builder.orderBy('name');
     },
-    onlyDogs: function (builder) {
+    onlyDogs: (builder) => {
       builder.where('species', 'dog');
     }
   })
-  .then(function (persons) {
-    console.log(persons[1].children.pets[0]);
+  .then(people => {
+    console.log(people[1].children.pets[0]);
   });
 ```
 
@@ -5670,7 +5117,7 @@ Type|Description
 > There are two ways to call this method:
 
 ```js
-Model.traverse(models, function (model, parentModel, relationName) {
+Model.traverse(models, (model, parentModel, relationName) => {
   doSomething(model);
 });
 ```
@@ -5678,7 +5125,7 @@ Model.traverse(models, function (model, parentModel, relationName) {
 and
 
 ```js
-Model.traverse(Person, models, function (person, parentModel, relationName) {
+Model.traverse(Person, models, (person, parentModel, relationName) => {
   doSomethingForPerson(person);
 });
 ```
@@ -5732,20 +5179,10 @@ other property.
 
 #### $beforeValidate
 
-> ES5
-
-```js
-Person.prototype.$beforeValidate = function (jsonSchema, json, opt) {
-  return jsonSchema;
-}
-```
-
-> ES6/ES7:
-
 ```js
 class Person extends Model {
   $beforeValidate(jsonSchema, json, opt) {
-
+    return jsonSchema;
   }
 }
 ```
@@ -5800,7 +5237,7 @@ Type|Description
 #### $toDatabaseJson
 
 ```js
-var row = modelInstance.$toDatabaseJson();
+const row = modelInstance.$toDatabaseJson();
 ```
 
 Exports this model as a database JSON object.
@@ -5819,7 +5256,7 @@ Object|Database row.
 #### $toJson
 
 ```js
-var jsonObj = modelInstance.$toJson();
+const jsonObj = modelInstance.$toJson();
 ```
 
 Exports this model as a JSON object.
@@ -5836,7 +5273,7 @@ Object|Model as a JSON object.
 #### toJSON
 
 ```js
-var jsonObj = modelInstance.toJSON();
+const jsonObj = modelInstance.toJSON();
 ```
 
 Exports this model as a JSON object.
@@ -5851,16 +5288,6 @@ Object|Model as a JSON object.
 
 
 #### $afterValidate
-
-> ES5
-
-```js
-Person.prototype.$afterValidate = function (json, opt) {
-
-}
-```
-
-> ES6/ES7:
 
 ```js
 class Person extends Model {
@@ -5890,10 +5317,13 @@ opt|[`ModelOptions`](#modeloptions)|Optional options
 #### $parseDatabaseJson
 
 ```js
-Person.prototype.$parseDatabaseJson = function (json) {
-  // Remember to call the super class's implementation.
-  json = Model.prototype.$parseDatabaseJson.call(this, json);
-  return json;
+class Person extends Model {
+  $parseDatabaseJson(json) {
+    // Remember to call the super class's implementation.
+    json = super.$parseDatabaseJson(json);
+    // Do your conversion here.
+    return json;
+  }
 }
 ```
 
@@ -5901,11 +5331,17 @@ This is called when a [`Model`](#model) is created from a database JSON object.
 
 Converts the JSON object from the database format to the internal format.
 
-This function must be able to handle any subset of model's properties coming in.
-You cannot assume that some column is present in the `json` object as it depends
-on the select statement. There can also be additional columns because of joins,
-aliases etc. This method must also be prepared for null values in _any_ property
-of the `json` object.
+There are a couple of requirements for the implementation:
+
+    1. This function must be pure. It should't have any side effects because it is called
+       from "unexpected" places (for example to determine if your model somehow transforms
+       column names between db and code).
+
+    2. This function must be able to handle any subset of model's properties coming in.
+       You cannot assume that some column is present in the `json` object as it depends
+       on the select statement. There can also be additional columns because of joins,
+       aliases etc. This method must also be prepared for null values in _any_ property
+       of the `json` object.
 
 ##### Arguments
 
@@ -5925,10 +5361,13 @@ Object|The JSON object in internal format
 #### $formatDatabaseJson
 
 ```js
-Person.prototype.$formatDatabaseJson = function (json) {
-  // Remember to call the super class's implementation.
-  json = Model.prototype.$formatDatabaseJson.call(this, json);
-  return json;
+class Person extends Model {
+  $formatDatabaseJson(json) {
+    // Remember to call the super class's implementation.
+    json = super.$formatDatabaseJson(json);
+    // Do your conversion here.
+    return json;
+  }
 }
 ```
 
@@ -5936,10 +5375,16 @@ This is called when a [`Model`](#model) is converted to database format.
 
 Converts the JSON object from the internal format to the database format.
 
-This function must be able to handle any subset of model's properties coming in.
-You cannot assume that some property is present in the `json` object. There can
-also be additional properties. This method must also be prepared for null values
-in _any_ property of the `json` object.
+There are a couple of requirements for the implementation:
+
+    1. This function must be pure. It should't have any side effects because it is called
+       from "unexpected" places (for example to determine if your model somehow transforms
+       column names between db and code).
+
+    2. This function must be able to handle any subset of model's properties coming in.
+       You cannot assume that some property is present in the `json` object. There can
+       also be additional properties. This method must also be prepared for null values
+       in _any_ property of the `json` object.
 
 ##### Arguments
 
@@ -5959,10 +5404,13 @@ Object|The JSON object in database format
 #### $parseJson
 
 ```js
-Person.prototype.$parseJson = function (json, opt) {
-  // Remember to call the super class's implementation.
-  json = Model.prototype.$parseJson.call(this, json, opt);
-  return json;
+class Person extends Model {
+  $parseJson(json, opt) {
+    // Remember to call the super class's implementation.
+    json = super.$parseJson(json, opt);
+    // Do your conversion here.
+    return json;
+  }
 }
 ```
 
@@ -5970,10 +5418,16 @@ This is called when a [`Model`](#model) is created from a JSON object.
 
 Converts the JSON object from the external format to the internal format.
 
-This function must be able to handle any subset of model's properties coming in.
-You cannot assume that some property is present in the `json` object. There can
-also be additional properties. This method must also be prepared for null values
-in _any_ property of the `json` object.
+There are a couple of requirements for the implementation:
+
+    1. This function must be pure. It should't have any side effects because it is called
+       from "unexpected" places (for example to determine if your model somehow transforms
+       column names between db and code).
+
+    2. This function must be able to handle any subset of model's properties coming in.
+       You cannot assume that some property is present in the `json` object. There can
+       also be additional properties. This method must also be prepared for null values
+       in _any_ property of the `json` object.
 
 ##### Arguments
 
@@ -5994,10 +5448,13 @@ Object|The JSON object in internal format
 #### $formatJson
 
 ```js
-Person.prototype.$formatJson = function (json) {
-  // Remember to call the super class's implementation.
-  json = Model.prototype.$formatJson.call(this, json);
-  return json;
+class Person extends Model {
+  $formatJson(json) {
+    // Remember to call the super class's implementation.
+    json = super.$formatJson(json);
+    // Do your conversion here.
+    return json;
+  }
 }
 ```
 
@@ -6005,10 +5462,18 @@ This is called when a [`Model`](#model) is converted to JSON.
 
 Converts the JSON object from the internal format to the external format.
 
-This function must be able to handle any subset of model's properties coming in.
-You cannot assume that some property is present in the `json` object. There can
-also be additional properties. This method must also be prepared for null values
-in _any_ property of the `json` object.
+There are a couple of requirements for the implementation:
+
+    1. This function must be pure. It should't have any side effects because it is called
+       from "unexpected" places (for example to determine if your model somehow transforms
+       column names between db and code).
+
+    2. This function must be able to handle any subset of model's properties coming in.
+       You cannot assume that some column is present in the `json` object as it depends
+       on the select statement. There can also be additional columns because of joins,
+       aliases etc. This method must also be prepared for null values in _any_ property
+       of the `json` object.
+
 
 ##### Arguments
 
@@ -6109,7 +5574,7 @@ modelInstance.$omit(keys);
 > Omits a set of properties.
 
 ```js
-var json = person
+const json = person
   .fromJson({firstName: 'Jennifer', lastName: 'Lawrence', age: 24})
   .$omit('lastName')
   .toJSON();
@@ -6118,7 +5583,7 @@ console.log(_.has(json, 'lastName')); // --> false
 ```
 
 ```js
-var json = person
+const json = person
   .fromJson({firstName: 'Jennifer', lastName: 'Lawrence', age: 24})
   .$omit(['lastName'])
   .toJSON();
@@ -6127,7 +5592,7 @@ console.log(_.has(json, 'lastName')); // --> false
 ```
 
 ```js
-var json = person
+const json = person
   .fromJson({firstName: 'Jennifer', lastName: 'Lawrence', age: 24})
   .$omit({lastName: true})
   .toJSON();
@@ -6168,7 +5633,7 @@ modelInstance.$pick(keys);
 > Omits a set of properties.
 
 ```js
-var json = person
+const json = person
   .fromJson({firstName: 'Jennifer', lastName: 'Lawrence', age: 24})
   .$pick('firstName', 'age')
   .toJSON();
@@ -6177,7 +5642,7 @@ console.log(_.has(json, 'lastName')); // --> false
 ```
 
 ```js
-var json = person
+const json = person
   .fromJson({firstName: 'Jennifer', lastName: 'Lawrence', age: 24})
   .$pick(['firstName', 'age'])
   .toJSON();
@@ -6186,7 +5651,7 @@ console.log(_.has(json, 'lastName')); // --> false
 ```
 
 ```js
-var json = person
+const json = person
   .fromJson({firstName: 'Jennifer', lastName: 'Lawrence', age: 24})
   .$pick({firstName: true, age: true})
   .toJSON();
@@ -6221,7 +5686,7 @@ Type|Description
 #### $clone
 
 ```js
-var clone = modelInstance.$clone;
+const clone = modelInstance.$clone;
 ```
 
 Returns a deep copy of this model.
@@ -6243,7 +5708,7 @@ Type|Description
 > Re-fetch the instance from the database:
 
 ```js
-person.$query().then(function (person) {
+person.$query().then(person => {
   console.log(person);
 });
 ```
@@ -6251,7 +5716,7 @@ person.$query().then(function (person) {
 > Insert a new model to database:
 
 ```js
-Person.fromJson({firstName: 'Jennifer'}).$query().insert().then(function (jennifer) {
+Person.fromJson({firstName: 'Jennifer'}).$query().insert().then(jennifer => {
   console.log(jennifer.id);
 });
 ```
@@ -6259,7 +5724,7 @@ Person.fromJson({firstName: 'Jennifer'}).$query().insert().then(function (jennif
 > Patch a model:
 
 ```js
-person.$query().patch({lastName: 'Cooper'}).then(function () {
+person.$query().patch({lastName: 'Cooper'}).then(() => {
   console.log('person updated');
 });
 ```
@@ -6267,7 +5732,7 @@ person.$query().patch({lastName: 'Cooper'}).then(function () {
 > Delete a model.
 
 ```js
-person.$query().delete().then(function () {
+person.$query().delete().then(() => {
   console.log('person deleted');
 });
 ```
@@ -6294,20 +5759,20 @@ Type|Description
 #### $relatedQuery
 
 ```js
-var builder = model.$relatedQuery(relationName);
+const builder = model.$relatedQuery(relationName);
 ```
 
 > Fetch all models related to a model through a relation. The fetched models are
 > also stored to the owner model's property named after the relation:
 
 ```js
-jennifer.$relatedQuery('pets').then(function (pets) {
+jennifer.$relatedQuery('pets').then(pets => {
   console.log('jennifer has', pets.length, 'pets');
   console.log(jennifer.pets === pets); // --> true
 });
 ```
 
-> The related query is just like any other query. Allknex* methods are available:
+> The related query is just like any other query. All knex methods are available:
 
 ```js
 jennifer
@@ -6317,7 +5782,7 @@ jennifer
   .orWhere('breed', '=', 'cat')
   .innerJoin('Person', 'Person.id', 'Animal.ownerId')
   .orderBy('Animal.name')
-  .then(function (dogsAndCats) {
+  .then(dogsAndCats => {
     // All the dogs and cats have the owner's name "Jennifer"
     // joined as the `ownerName` property.
     console.log(dogsAndCats);
@@ -6331,7 +5796,7 @@ jennifer
 jennifer
   .$relatedQuery('pets')
   .insert({species: 'dog', name: 'Fluffy'})
-  .then(function (waldo) {
+  .then(waldo => {
     console.log(waldo.id);
   });
 ```
@@ -6344,7 +5809,7 @@ jennifer
 jennifer
   .$relatedQuery('pets')
   .relate(fluffy.id)
-  .then(function () {
+  .then(() => {
     console.log('fluffy is now related to jennifer through pets relation');
   });
 ```
@@ -6358,7 +5823,7 @@ jennifer
   .$relatedQuery('pets')
   .unrelate()
   .where('id', fluffy.id)
-  .then(function () {
+  .then(() => {
     console.log('jennifer no longer has fluffy as a pet');
   });
 ```
@@ -6372,7 +5837,7 @@ jennifer
   .$relatedQuery('pets')
   .delete()
   .where('species', 'cat')
-  .then(function () {
+  .then(() => {
     console.log('jennifer no longer has any cats');
   });
 ```
@@ -6387,7 +5852,7 @@ jennifer
   .$relatedQuery('pets')
   .update({species: 'dog', name: 'Fluffy the great', vaccinated: false})
   .where('id', fluffy.id)
-  .then(function (updatedFluffy) {
+  .then(updatedFluffy => {
     console.log('fluffy\'s new name is', updatedFluffy.name);
   });
 
@@ -6403,7 +5868,7 @@ jennifer
   .$relatedQuery('pets')
   .patch({vaccinated: true})
   .where('species', 'dog')
-  .then(function () {
+  .then(() => {
     console.log('jennifer just got all her dogs vaccinated');
   });
 ```
@@ -6429,13 +5894,13 @@ Type|Description
 #### $loadRelated
 
 ```js
-var builder = modelInstance.$loadRelated(expression, filters);
+const builder = modelInstance.$loadRelated(expression, filters);
 ```
 
 > Examples:
 
 ```js
-jennifer.$loadRelated('[pets, children.[pets, father]]').then(function (jennifer) {
+jennifer.$loadRelated('[pets, children.[pets, father]]').then(jennifer => {
   console.log('Jennifer has', jennifer.pets.length, 'pets');
   console.log('Jennifer has', jennifer.children.length, 'children');
   console.log('Jennifer\'s first child has', jennifer.children[0].pets.length, 'pets');
@@ -6449,17 +5914,17 @@ jennifer.$loadRelated('[pets, children.[pets, father]]').then(function (jennifer
 ```js
 jennifer
   .$loadRelated('children(orderByAge).[pets(onlyDogs, orderByName), movies]', {
-    orderByAge: function (builder) {
+    orderByAge: (builder) => {
       builder.orderBy('age');
     },
-    orderByName: function (builder) {
+    orderByName: (builder) => {
       builder.orderBy('name');
     },
-    onlyDogs: function (builder) {
+    onlyDogs: (builder) => {
       builder.where('species', 'dog');
     }
   })
-  .then(function (jennifer) {
+  .then(jennifer => {
     console.log(jennifer.children.pets[0]);
   });
 ```
@@ -6506,8 +5971,10 @@ Shortcut for [`return this.constructor.knex()`](#knex).
 #### $beforeInsert
 
 ```js
-Person.prototype.$beforeInsert = function (queryContext) {
-
+class Person extends Model {
+  $beforeInsert(queryContext) {
+    return doPossiblyAsyncStuff();
+  }
 }
 ```
 
@@ -6535,8 +6002,10 @@ Type|Description
 #### $afterInsert
 
 ```js
-Person.prototype.$afterInsert = function (queryContext) {
-
+class Person extends Model {
+  $afterInsert(queryContext) {
+    return doPossiblyAsyncStuff();
+  }
 }
 ```
 
@@ -6561,20 +6030,10 @@ Type|Description
 
 #### $beforeUpdate
 
-> ES5:
-
-```js
-Person.prototype.$beforeUpdate = function (opt, queryContext) {
-
-}
-```
-
-> ES6/ES7:
-
 ```js
 class Person extends Model {
   $beforeUpdate(opt, queryContext) {
-
+    return doPossiblyAsyncStuff();
   }
 }
 ```
@@ -6630,20 +6089,10 @@ Type|Description
 
 #### $afterUpdate
 
-> ES5
-
-```js
-Person.prototype.$afterUpdate = function (opt, queryContext) {
-
-}
-```
-
-> ES6/ES7:
-
 ```js
 class Person extends Model {
   $afterUpdate(opt, queryContext) {
-
+    return doPossiblyAsyncStuff();
   }
 }
 ```
@@ -6696,20 +6145,10 @@ Type|Description
 
 #### $beforeDelete
 
-> ES5
-
-```js
-Person.prototype.$beforeDelete = function (queryContext) {
-
-}
-```
-
-> ES6/ES7:
-
 ```js
 class Person extends Model {
   $beforeDelete(queryContext) {
-
+    return doPossiblyAsyncStuff();
   }
 }
 ```
@@ -6737,20 +6176,10 @@ Type|Description
 
 #### $afterDelete
 
-> ES5
-
-```js
-Person.prototype.$afterDelete = function (queryContext) {
-
-}
-```
-
-> ES6/ES7:
-
 ```js
 class Person extends Model {
   $afterDelete(queryContext) {
-
+    return doPossiblyAsyncStuff();
   }
 }
 ```
@@ -6779,17 +6208,9 @@ Type|Description
 #### $afterGet
 
 ```js
-Person.prototype.$afterGet = function (queryContext) {
-
-}
-```
-
-> ES6
-
-```js
 class Person extends Model {
   $afterGet(queryContext) {
-
+    return doPossiblyAsyncStuff();
   }
 }
 ```
@@ -6911,9 +6332,9 @@ Caveats when using special characters in keys:
 Person
   .query()
   .eager('children.[movies.actors.[pets, children], pets]')
-  .then(function (persons) {
+  .then(people => {
     // All persons have the given relation tree fetched.
-    console.log(persons[0].children[0].movies[0].actors[0].pets[0].name);
+    console.log(people[0].children[0].movies[0].actors[0].pets[0].name);
   });
 ```
 
@@ -6951,10 +6372,117 @@ the `^` character. For example `parent.^3` is equal to `parent.parent.parent`.
 
 
 
+## Validator
+
+```js
+const Validator = require('objection').Validator;
+```
+
+> Usage example:
+
+```js
+const Validator = require('objection').Validator;
+
+class MyCustomValidator extends Validator {
+  validate(args) {
+    // The model instance. May be empty at this point.
+    const model = args.model;
+
+    // The properties to validate. After validation these values will
+    // be merged into `model` by objection.
+    const json = args.json;
+
+    // `ModelOptions` object. If your custom validator sets default
+    // values, you need to check the `opt.patch` boolean. If it is true
+    // we are validating a patch object and the defaults should not be set.
+    const opt = args.options;
+
+    // A context object shared between the validation methods. A new
+    // object is created for each validation operation. You can store
+    // any data here.
+    const ctx = args.ctx;
+
+    // Do your validation here and throw any exception if the
+    // validation fails.
+    doSomeValidationAndThrowIfFails(json);
+
+    // You need to return the (possibly modified) json.
+    return json;
+  }
+
+  beforeValidate(args) {
+    // Takes the same arguments as `validate`. Usually there is no need
+    // to override this.
+    return super.beforeValidate(args);
+  }
+
+  afterValidate(args) {
+    // Takes the same arguments as `validate`. Usually there is no need
+    // to override this.
+    return super.afterValidate(args);
+  }
+}
+
+const Model = require('objection').Model;
+
+// Override the `createValidator` method of a `Model` to use the
+// custom validator.
+class BaseModel extends Model {
+  static createValidator() {
+    return new MyCustomValidator();
+  }
+}
+```
+
+Abstract class from which model validators must be inherited. See the
+example for explanation. Also check out the [`createValidator`](#createvalidator)
+method.
+
+
+
+
+## AjvValidator
+
+```js
+const AjvValidator = require('objection').AjvValidator;
+```
+
+> Usage example:
+
+```js
+const Model = require('objection').Model;
+const AjvValidator = require('objection').AjvValidator;
+
+class BaseModel extends Model {
+  static createValidator() {
+    return new AjvValidator({
+      onCreateAjv: (ajv) => {
+        // Here you can modify the `Ajv` instance.
+      },
+      options: {
+        allErrors: true,
+        validateSchema: false,
+        ownProperties: true,
+        v5: true
+      }
+    });
+  }
+}
+```
+
+The default [Ajv](https://github.com/epoberezkin/ajv) based json schema
+validator. You can override the [`createValidator`](#createvalidator)
+method of [`Model`](#model) like in the example to modify the validator.
+
+
+
+
 ## ValidationError
 
 ```js
-throw new ValidationError('any string or object');
+const ValidationError = require('objection').ValidationError;
+
+throw new ValidationError({ /* see `data` object below */ });
 ```
 
 Error of this class is thrown if a model validation fails.
@@ -6962,8 +6490,38 @@ Error of this class is thrown if a model validation fails.
 Property|Type|Description
 --------|----|-----------
 statusCode|number|HTTP status code for interop with express error handlers and other libraries that search for status code from errors.
-data|*|Any data passed to the constructor.
+data|Object|Dictionary of errors.
 
+The `data` object should follow this pattern:
+
+```js
+{
+  key1: [{
+    message: '...',
+    keyword: 'required',
+    params: null
+  }, {
+    message: '...',
+    keyword: '...',
+    params: {
+      ...
+    }
+  }, ...],
+
+  key2: [{
+    message: '...',
+    keyword: 'minLength',
+    params: {
+      limit: 1,
+      ...
+    }
+  }, ...],
+
+  ...
+}
+```
+
+For each `key`, a list of errors is given. Each error contains the default `message` (as returned by the validator), an optional `keyword` string to identify the validation rule which didn't pass and a `param` object which optionally contains more details about the context of the validation error.
 
 
 
@@ -6977,7 +6535,7 @@ old|object|The old values for methods like `$beforeUpdate` and `$beforeValidate`
 
 
 
-# EagerOptions
+## EagerOptions
 
 Property|Type|Description
 --------|----|-----------

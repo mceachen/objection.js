@@ -1,5 +1,93 @@
 # Changelog
 
+## 0.7.12
+
+### What's new
+
+ * fix [#345](https://github.com/Vincit/objection.js/issues/345)
+
+## 0.7.11
+
+### What's new
+
+ * fix [#339](https://github.com/Vincit/objection.js/issues/339)
+ * fix [#341](https://github.com/Vincit/objection.js/issues/341)
+
+## 0.7.10
+
+### What's new
+
+ * fix bugs that prevented using `$relatedQuery` and `eager` together with `JoinEagerAlgorithm`
+ * typing updates
+
+
+## 0.7.9
+
+### What's new
+
+ * [`joinRelation`](http://vincit.github.io/objection.js/#joinrelation) now accepts [`RelationExpressions`](http://vincit.github.io/objection.js/#relationexpression) and can join multiple and nested relations.
+
+## 0.7.6
+
+### What's new
+
+ * `range` and `page` methods now use a window function and only generate one query on postgresql [#62](https://github.com/Vincit/objection.js/issues/62)
+ * fix MSSQL 2100 parameter limit in eager queries [#311](https://github.com/Vincit/objection.js/issues/311)
+
+## 0.7.5
+
+### What's new
+
+ * fix [#327](https://github.com/Vincit/objection.js/issues/327)
+ * fix [#256](https://github.com/Vincit/objection.js/issues/256)
+
+## 0.7.4
+
+### What's new
+
+ * automatically select columns needed for relations [#309](https://github.com/Vincit/objection.js/issues/309)
+ * fix an issue where `$formatJson` was called inside `insertGraph` [#326](https://github.com/Vincit/objection.js/issues/326)
+
+## 0.7.3
+
+### What's new
+
+ * fix [#325](https://github.com/Vincit/objection.js/issues/325)
+ * fix an issue where `select` had to be used in addition to `distinct` in some cases
+
+## 0.7.2
+
+### What's new
+
+ * `HasOneThroughRelation` relation type.
+
+## 0.7.1
+
+### What's new
+
+ * fix `JoinEagerAlgorithm` NPE bug
+
+## 0.7.0
+
+### What's new
+
+ * `jsonSchema` without `properties` now works. [#205](https://github.com/Vincit/objection.js/issues/205)
+ * `relationMappings` can now be a function. [#227](https://github.com/Vincit/objection.js/issues/227)
+ * many to many extras can now be aliased. [#223](https://github.com/Vincit/objection.js/issues/223)
+ * zero values are now allowed in relation columns. [#228](https://github.com/Vincit/objection.js/issues/228)
+ * active transaction can now be accessed in `$before/$after` hooks through `queryContext.transaction` property.
+ * Validation can now be easily modified through a new [`Validator`](#validator) interface. [#241](https://github.com/Vincit/objection.js/issues/241) [#199](https://github.com/Vincit/objection.js/issues/199)
+ * fix a `JoinEager` problem where an empty result for a relation caused the following relations to be empty. [#292](https://github.com/Vincit/objection.js/issues/292)
+ * `ref(fieldExpression)` syntax to reduce need for knex.raw and updating single attribute inside JSON column. [#270](https://github.com/Vincit/objection.js/issues/270)
+ * [mergeEager](http://vincit.github.io/objection.js/#mergeeager) method.
+
+### Breaking changes
+
+ * `$relatedQuery` now returns a single model instead of an array for belongsToOne and hasOne relations. [#155](https://github.com/Vincit/objection.js/issues/155)
+ * identifier of a model can now be updated. Be careful with this one! Before if you forgot a wrong id in an `update`/`patch` operation, it would simply get ignored. Now the id is also updated just like any other column [#100](https://github.com/Vincit/objection.js/issues/100)
+ * `Table.*` is now selected by default in all queries instead of `*`. This will break some join queries that don't have an explicit select clause. [#161](https://github.com/Vincit/objection.js/issues/161)
+ * `ValidationError.data` is now an object including, for each key, a list of errors with context info. [#283](https://github.com/Vincit/objection.js/issues/283)
+
 ## 0.6.2
 
 ### What's new
@@ -37,7 +125,7 @@
    method can be called for a query builder to handle the undefined values the old way.
 
  * Deprecated method `dumpSql` is now removed.
- 
+
  * `$loadRelated` and `loadRelated` now return a `QueryBuilder`. This may break your code is some rare cases
    where you have called a non-standard promise method like `reflect` for the return value of these functions.
 
@@ -68,7 +156,7 @@
 
 * [$afterGet](#afterget) hook.
 
-## 0.5.0 
+## 0.5.0
 
 ### What's new
 
@@ -155,7 +243,7 @@ There are a few known corner cases that may break:
  * generator function support for transactions
  * traverse,pick and omit methods for Model and QueryBuilder
  * bugfix: issue #38
- 
+
 ## 0.2.7
 
 ### What's new
@@ -201,7 +289,7 @@ There are a few known corner cases that may break:
 
 ### What's new
 
- * bugfix: Chaining `insert` with `returning` now returns all listed columns. 
+ * bugfix: Chaining `insert` with `returning` now returns all listed columns.
 
 ## 0.2.0
 

@@ -1,9 +1,9 @@
 node_modules
+.history
 .idea
 testCoverage
 examples/*/*.db
 *.iml
 *.DS_Store
-lib
 profiling
 npm-debug.log*

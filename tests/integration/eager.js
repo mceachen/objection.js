@@ -1,16 +1,19 @@
 'use strict';
 
-var _ = require('lodash');
-var expect = require('expect.js');
-var ValidationError = require('../../').ValidationError;
+const _ = require('lodash');
+const expect = require('expect.js');
+const Promise = require('bluebird');
+const ValidationError = require('../../').ValidationError;
+const mockKnexFactory = require('../../testUtils/mockKnex');
+const isPostgres = require('../../lib/utils/knexUtils').isPostgres;
 
-module.exports = function (session) {
-  var Model1 = session.models.Model1;
-  var Model2 = session.models.Model2;
+module.exports = (session) => {
+  const Model1 = session.models.Model1;
+  const Model2 = session.models.Model2;
 
-  describe('Model eager queries', function () {
+  describe('Model eager queries', () => {
 
-    before(function () {
+    before(() => {
       return session.populate([{
         id: 1,
         model1Prop1: 'hello 1',
@@ -36,7 +39,17 @@ module.exports = function (session) {
 
         model1Relation2: [{
           idCol: 1,
-          model2Prop1: 'hejsan 1'
+          model2Prop1: 'hejsan 1',
+
+          model2Relation2: {
+            id: 8,
+            model1Prop1: 'hello 8',
+
+            model1Relation1: {
+              id: 9,
+              model1Prop1: 'hello 9'
+            }
+          }
         }, {
           idCol: 2,
           model2Prop1: 'hejsan 2',
@@ -64,102 +77,7 @@ module.exports = function (session) {
       }]);
     });
 
-    describe.skip('balls', function () {
-
-      before(function () {
-        var _n = 0;
-
-        function n() {
-          return ++_n;
-        }
-
-        return session.populate(_.times(100, function (i) {
-          return {
-            model1Prop2: i,
-
-            model1Relation1: {
-              model1Prop1: 'hello ' + n(),
-
-              model1Relation1: {
-                model1Prop1: 'hello ' + n(),
-
-                model1Relation1: {
-                  model1Prop1: 'hello ' + n(),
-
-                  model1Relation2: _.times(3, function () {
-                    return {
-                      model2Prop1: 'hejsan ' + n()
-                    }
-                  })
-                }
-              }
-            },
-
-            model1Relation2: _.times(3, function () {
-              return {
-                model2Prop1: 'hejsan ' + n(),
-
-                model2Relation1: _.times(2, function () {
-                  return {
-                    model1Prop1: 'hello ' + n(),
-                    aliasedExtra: 'extra ' + n(),
-
-                    model1Relation1: {
-                      model1Prop1: 'hello ' + n()
-                    },
-
-                    model1Relation2: [{
-                      model2Prop1: 'hejsan ' + n()
-                    }]
-                  };
-                })
-              };
-            })
-          }
-        }));
-      });
-
-      it('yeahhh', function () {
-        return Promise.all(_.range(100).map(function () {
-          return Model1
-            .query()
-            .where('Model1.model1Prop2', '<', 100)
-            .eagerAlgorithm(Model1.JoinEagerAlgorithm)
-            //.eager('model1Relation2')
-            .eager('[model1Relation1, model1Relation2.model2Relation1]')
-            /*
-             .modifyEager('model1Relation1', builder => {
-             builder.select('id');
-             })
-             .modifyEager('model1Relation1.model1Relation1', builder => {
-             builder.select('id');
-             })
-             .modifyEager('model1Relation1.model1Relation1.model1Relation1', builder => {
-             builder.select('id');
-             })
-             .modifyEager('model1Relation2', builder => {
-             builder.select('id_col');
-             })
-             .modifyEager('model1Relation2.model2Relation1', builder => {
-             builder.select('id');
-             })
-             .modifyEager('model1Relation2.model2Relation1.model1Relation1', builder => {
-             builder.select('id');
-             })
-             .modifyEager('model1Relation2.model2Relation1.model1Relation2', builder => {
-             builder.select('id_col');
-             })
-             */
-            //.debug()
-            .then(function (res) {
-              //console.log('==================================================================')
-              //console.dir(res, {depth: 100})
-            });
-        }));
-      });
-    });
-
-    test('model1Relation1', function (models) {
+    test('model1Relation1', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -172,14 +90,14 @@ module.exports = function (session) {
           model1Prop1: 'hello 2',
           model1Prop2: null,
           $afterGetCalled: 1
-        },
+        }
       }]);
 
       expect(models[0]).to.be.a(Model1);
       expect(models[0].model1Relation1).to.be.a(Model1);
     });
 
-    test('model1Relation1.model1Relation1', function (models) {
+    test('model1Relation1.model1Relation1', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -199,11 +117,11 @@ module.exports = function (session) {
             model1Prop2: null,
             $afterGetCalled : 1
           }
-        },
+        }
       }]);
     });
 
-    test('model1Relation1.model1Relation1Inverse', function (models) {
+    test('model1Relation1.model1Relation1Inverse', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -222,12 +140,12 @@ module.exports = function (session) {
             model1Prop1: 'hello 1',
             model1Prop2: null,
             $afterGetCalled: 1
-          },
-        },
+          }
+        }
       }]);
     });
 
-    test('model1Relation1.^', function (models) {
+    test('model1Relation1.^', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -252,14 +170,14 @@ module.exports = function (session) {
               model1Prop1: 'hello 4',
               model1Prop2: null,
               $afterGetCalled: 1,
-              model1Relation1: null,
-            },
-          },
+              model1Relation1: null
+            }
+          }
         }
       }]);
     }, {disableJoin: true});
 
-    test('model1Relation1.^2', function (models) {
+    test('model1Relation1.^2', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -277,13 +195,13 @@ module.exports = function (session) {
             model1Id: 4,
             model1Prop1: 'hello 3',
             model1Prop2: null,
-            $afterGetCalled: 1,
-          },
+            $afterGetCalled: 1
+          }
         }
       }]);
     });
 
-    test('model1Relation1(selectId).^', function (models) {
+    test('model1Relation1(selectId).^', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -303,20 +221,20 @@ module.exports = function (session) {
               $afterGetCalled: 1,
               model1Id: null,
               model1Relation1: null
-            },
-          },
+            }
+          }
         }
       }]);
     }, {
       filters: {
-        selectId: function (builder) {
+        selectId: builder => {
           builder.select('id', 'model1Id');
         }
       },
       disableJoin: true
     });
 
-    test('model1Relation1(selectId).^4', function (models) {
+    test('model1Relation1(selectId).^4', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -332,14 +250,14 @@ module.exports = function (session) {
             model1Relation1: {
               model1Prop1: 'hello 4',
               $afterGetCalled: 1,
-              model1Relation1: null,
-            },
-          },
+              model1Relation1: null
+            }
+          }
         }
       }]);
     }, {
       filters: {
-        selectId: function (builder) {
+        selectId: builder => {
           builder.select('model1Prop1');
         }
       },
@@ -347,7 +265,87 @@ module.exports = function (session) {
       eagerOptions: {minimize: true}
     });
 
-    test('[model1Relation1, model1Relation2]', function (models) {
+    test('model1Relation2.model2Relation2', models => {
+      expect(models).to.eql([{
+        id: 1,
+        model1Id: 2,
+        model1Prop1: 'hello 1',
+        model1Prop2: null,
+        $afterGetCalled: 1,
+
+        model1Relation2: [{
+          idCol: 1,
+          model1Id: 1,
+          model2Prop1: 'hejsan 1',
+          model2Prop2: null,
+          $afterGetCalled: 1,
+
+          model2Relation2: {
+            id: 8,
+            model1Id: 9,
+            model1Prop1: 'hello 8',
+            model1Prop2: null,
+            $afterGetCalled: 1
+          }
+        }, {
+          idCol: 2,
+          model1Id: 1,
+          model2Prop1: 'hejsan 2',
+          model2Prop2: null,
+          $afterGetCalled: 1,
+          model2Relation2: null
+        }]
+      }]);
+
+      expect(models[0]).to.be.a(Model1);
+      expect(models[0].model1Relation2[0].model2Relation2).to.be.a(Model1);
+    });
+
+    test('model1Relation2.model2Relation2.model1Relation1', models => {
+      expect(models).to.eql([{
+        id: 1,
+        model1Id: 2,
+        model1Prop1: 'hello 1',
+        model1Prop2: null,
+        $afterGetCalled: 1,
+
+        model1Relation2: [{
+          idCol: 1,
+          model1Id: 1,
+          model2Prop1: 'hejsan 1',
+          model2Prop2: null,
+          $afterGetCalled: 1,
+
+          model2Relation2: {
+            id: 8,
+            model1Id: 9,
+            model1Prop1: 'hello 8',
+            model1Prop2: null,
+            $afterGetCalled: 1,
+
+            model1Relation1: {
+              id: 9,
+              model1Id: null,
+              model1Prop1: 'hello 9',
+              model1Prop2: null,
+              $afterGetCalled: 1
+            }
+          }
+        }, {
+          idCol: 2,
+          model1Id: 1,
+          model2Prop1: 'hejsan 2',
+          model2Prop2: null,
+          $afterGetCalled: 1,
+          model2Relation2: null
+        }]
+      }]);
+
+      expect(models[0]).to.be.a(Model1);
+      expect(models[0].model1Relation2[0].model2Relation2.model1Relation1).to.be.a(Model1);
+    });
+
+    test('[model1Relation1, model1Relation2]', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -360,7 +358,7 @@ module.exports = function (session) {
           model1Id: 3,
           model1Prop1: 'hello 2',
           model1Prop2: null,
-          $afterGetCalled: 1,
+          $afterGetCalled: 1
         },
 
         model1Relation2: [{
@@ -368,21 +366,21 @@ module.exports = function (session) {
           model1Id: 1,
           model2Prop1: 'hejsan 1',
           model2Prop2: null,
-          $afterGetCalled: 1,
+          $afterGetCalled: 1
         }, {
           idCol: 2,
           model1Id: 1,
           model2Prop1: 'hejsan 2',
           model2Prop2: null,
-          $afterGetCalled: 1,
-        }],
+          $afterGetCalled: 1
+        }]
       }]);
 
       expect(models[0]).to.be.a(Model1);
       expect(models[0].model1Relation2[0]).to.be.a(Model2);
     });
 
-    test('[model1Relation1, model1Relation2(orderByDesc, selectProps)]', function (models) {
+    test('[model1Relation1, model1Relation2(orderByDesc, selectProps)]', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -395,27 +393,27 @@ module.exports = function (session) {
           model1Id: 3,
           model1Prop1: 'hello 2',
           model1Prop2: null,
-          $afterGetCalled: 1,
+          $afterGetCalled: 1
         },
 
         model1Relation2: [{
           idCol: 2,
           model1Id: 1,
           model2Prop1: 'hejsan 2',
-          $afterGetCalled: 1,
+          $afterGetCalled: 1
         }, {
           idCol: 1,
           model1Id: 1,
           model2Prop1: 'hejsan 1',
-          $afterGetCalled: 1,
+          $afterGetCalled: 1
         }]
       }]);
     }, {
       filters: {
-        selectProps: function (builder) {
+        selectProps: builder => {
           builder.select('id_col', 'model_1_id', 'model_2_prop_1');
         },
-        orderByDesc: function (builder) {
+        orderByDesc: builder => {
           builder.orderBy('model_2_prop_1', 'desc');
         }
       },
@@ -423,7 +421,7 @@ module.exports = function (session) {
       disableSort: true
     });
 
-    test('[model1Relation1, model1Relation2.model2Relation1]', function (models) {
+    test('[model1Relation1, model1Relation2.model2Relation1]', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -467,12 +465,12 @@ module.exports = function (session) {
             model1Prop2: null,
             aliasedExtra: 'extra 6',
             $afterGetCalled: 1
-          }],
-        }],
+          }]
+        }]
       }]);
     });
 
-    test('[model1Relation2.model2Relation1, model1Relation1]', function (models) {
+    test('[model1Relation2.model2Relation1, model1Relation1]', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -516,12 +514,12 @@ module.exports = function (session) {
             model1Prop2: null,
             aliasedExtra: 'extra 6',
             $afterGetCalled: 1
-          }],
-        }],
+          }]
+        }]
       }]);
     });
 
-    test('[model1Relation1, model1Relation2.model2Relation1.[model1Relation1, model1Relation2]]', function (models) {
+    test('[model1Relation1, model1Relation2.model2Relation1.[model1Relation1, model1Relation2]]', models => {
       expect(models).to.eql([{
         id: 1,
         model1Id: 2,
@@ -573,7 +571,7 @@ module.exports = function (session) {
               model1Id: null,
               model1Prop1: 'hello 7',
               model1Prop2: null,
-              $afterGetCalled: 1,
+              $afterGetCalled: 1
             },
 
             model1Relation2: [{
@@ -581,145 +579,67 @@ module.exports = function (session) {
               model1Id: 6,
               model2Prop1: 'hejsan 3',
               model2Prop2: null,
-              $afterGetCalled: 1,
+              $afterGetCalled: 1
             }]
-          }],
-        }],
+          }]
+        }]
       }]);
     });
 
-    it('should be able to refer to joined relations with syntax Table:rel1:rel2.col (JoinEagerAlgorithm)', function () {
-      return Model1
-        .query()
-        .where('Model1.id', 1)
-        .where('model1Relation2.id_col', 2)
-        .eager('[model1Relation1, model1Relation2.model2Relation1]')
-        .eagerAlgorithm(Model1.JoinEagerAlgorithm)
-        .then(function (models) {
-          expect(models).to.eql([{
-            id: 1,
-            model1Id: 2,
-            model1Prop1: 'hello 1',
-            model1Prop2: null,
-            $afterGetCalled: 1,
+    describe('JoinEagerAlgorithm', () => {
 
-            model1Relation1: {
-              id: 2,
-              model1Id: 3,
-              model1Prop1: 'hello 2',
-              model1Prop2: null,
-              $afterGetCalled: 1
-            },
-
-            model1Relation2: [{
-              idCol: 2,
-              model1Id: 1,
-              model2Prop1: 'hejsan 2',
-              model2Prop2: null,
+      it('select should work', () => {
+        return Model1
+          .query()
+          .select('Model1.id', 'Model1.model1Prop1')
+          .where('Model1.id', 1)
+          .where('model1Relation2.id_col', 2)
+          .where('model1Relation2:model2Relation1.id', 6)
+          .eager('[model1Relation1, model1Relation2.model2Relation1]')
+          .eagerAlgorithm(Model1.JoinEagerAlgorithm)
+          .then(models => {
+            expect(models).to.eql([{
+              id: 1,
+              model1Prop1: 'hello 1',
               $afterGetCalled: 1,
 
-              model2Relation1: [{
-                id: 5,
-                model1Id: null,
-                model1Prop1: 'hello 5',
+              model1Relation1: {
+                id: 2,
+                model1Id: 3,
+                model1Prop1: 'hello 2',
                 model1Prop2: null,
-                aliasedExtra: 'extra 5',
                 $afterGetCalled: 1
-              }, {
-                id: 6,
-                model1Id: 7,
-                model1Prop1: 'hello 6',
-                model1Prop2: null,
-                aliasedExtra: 'extra 6',
-                $afterGetCalled: 1
-              }],
-            }],
-          }]);
-        });
-    });
+              },
 
-    it('should be able to give aliases for relations (JoinEagerAlgorithm)', function () {
-      return Model1
-        .query()
-        .where('Model1.id', 1)
-        .where('mr2.id_col', 2)
-        .eager('[model1Relation1, model1Relation2.model2Relation1]')
-        .eagerAlgorithm(Model1.JoinEagerAlgorithm, {
-          aliases: {
-            model1Relation2: 'mr2'
-          }
-        })
-        .then(function (models) {
-          expect(models).to.eql([{
-            id: 1,
-            model1Id: 2,
-            model1Prop1: 'hello 1',
-            model1Prop2: null,
-            $afterGetCalled: 1,
+              model1Relation2: [{
+                idCol: 2,
+                model1Id: 1,
+                model2Prop1: 'hejsan 2',
+                model2Prop2: null,
+                $afterGetCalled: 1,
 
-            model1Relation1: {
-              id: 2,
-              model1Id: 3,
-              model1Prop1: 'hello 2',
-              model1Prop2: null,
-              $afterGetCalled: 1
-            },
-
-            model1Relation2: [{
-              idCol: 2,
-              model1Id: 1,
-              model2Prop1: 'hejsan 2',
-              model2Prop2: null,
-              $afterGetCalled: 1,
-
-              model2Relation1: [{
-                id: 5,
-                model1Id: null,
-                model1Prop1: 'hello 5',
-                model1Prop2: null,
-                aliasedExtra: 'extra 5',
-                $afterGetCalled: 1
-              }, {
-                id: 6,
-                model1Id: 7,
-                model1Prop1: 'hello 6',
-                model1Prop2: null,
-                aliasedExtra: 'extra 6',
-                $afterGetCalled: 1
-              }],
-            }],
-          }]);
-        });
-    });
-
-    describe('Model.defaultEagerOptions and Model.defaultEagerAlgorithm should be used if defined', function () {
-      var origAlgo;
-      var origOptions;
-
-      before(function () {
-        origAlgo = Model1.defaultEagerAlgorithm;
-        origOptions = Model1.defaultEagerOptions;
-
-        Model1.defaultEagerAlgorithm = Model1.JoinEagerAlgorithm;
-        Model1.defaultEagerOptions = {
-          aliases: {
-            model1Relation2: 'mr2'
-          }
-        };
+                model2Relation1: [{
+                  id: 6,
+                  model1Id: 7,
+                  model1Prop1: 'hello 6',
+                  model1Prop2: null,
+                  aliasedExtra: 'extra 6',
+                  $afterGetCalled: 1
+                }]
+              }]
+            }]);
+          });
       });
 
-      after(function () {
-        Model1.defaultEagerAlgorithm = origAlgo;
-        Model1.defaultEagerOptions = origOptions;
-      });
-
-      it('options for JoinEagerAlgorithm', function () {
+      it('should be able to refer to joined relations with syntax Table:rel1:rel2.col', () => {
         return Model1
           .query()
           .where('Model1.id', 1)
-          .where('mr2.id_col', 2)
+          .where('model1Relation2.id_col', 2)
           .eager('[model1Relation1, model1Relation2.model2Relation1]')
-          .then(function (models) {
+          .orderBy(['Model1.id', 'model1Relation2:model2Relation1.id'])
+          .eagerAlgorithm(Model1.JoinEagerAlgorithm)
+          .then(models => {
             expect(models).to.eql([{
               id: 1,
               model1Id: 2,
@@ -756,136 +676,258 @@ module.exports = function (session) {
                   model1Prop2: null,
                   aliasedExtra: 'extra 6',
                   $afterGetCalled: 1
-                }],
-              }],
+                }]
+              }]
+            }]);
+          });
+      });
+
+      it('should be able to give aliases for relations', () => {
+        return Model1
+          .query()
+          .where('Model1.id', 1)
+          .where('mr2.id_col', 2)
+          .eager('[model1Relation1, model1Relation2.model2Relation1]')
+          .orderBy(['Model1.id', 'mr2:model2Relation1.id'])
+          .eagerAlgorithm(Model1.JoinEagerAlgorithm, {
+            aliases: {
+              model1Relation2: 'mr2'
+            }
+          })
+          .then(models => {
+            expect(models).to.eql([{
+              id: 1,
+              model1Id: 2,
+              model1Prop1: 'hello 1',
+              model1Prop2: null,
+              $afterGetCalled: 1,
+
+              model1Relation1: {
+                id: 2,
+                model1Id: 3,
+                model1Prop1: 'hello 2',
+                model1Prop2: null,
+                $afterGetCalled: 1
+              },
+
+              model1Relation2: [{
+                idCol: 2,
+                model1Id: 1,
+                model2Prop1: 'hejsan 2',
+                model2Prop2: null,
+                $afterGetCalled: 1,
+
+                model2Relation1: [{
+                  id: 5,
+                  model1Id: null,
+                  model1Prop1: 'hello 5',
+                  model1Prop2: null,
+                  aliasedExtra: 'extra 5',
+                  $afterGetCalled: 1
+                }, {
+                  id: 6,
+                  model1Id: 7,
+                  model1Prop1: 'hello 6',
+                  model1Prop2: null,
+                  aliasedExtra: 'extra 6',
+                  $afterGetCalled: 1
+                }]
+              }]
+            }]);
+          });
+      });
+
+      it('relation references longer that 63 chars should throw an exception', done => {
+        Model1
+          .query()
+          .where('Model1.id', 1)
+          .eager('[model1Relation1.model1Relation1.model1Relation1.model1Relation1]')
+          .eagerAlgorithm(Model1.JoinEagerAlgorithm)
+          .then(() => {
+            done(new Error('should not get here'));
+          })
+          .catch(err => {
+            expect(err.data.eager).to.equal("identifier model1Relation1:model1Relation1:model1Relation1:model1Relation1:id is over 63 characters long and would be truncated by the database engine.");
+            done();
+          })
+          .catch(done);
+      });
+
+      it('relation references longer that 63 chars should NOT throw an exception if minimize: true option is given', done => {
+        Model1
+          .query()
+          .where('Model1.id', 1)
+          .eager('[model1Relation1.model1Relation1.model1Relation1.model1Relation1]')
+          .eagerAlgorithm(Model1.JoinEagerAlgorithm)
+          .eagerOptions({minimize: true})
+          .then(models => {
+            expect(models).to.eql([{
+              id: 1,
+              model1Id: 2,
+              model1Prop1: 'hello 1',
+              model1Prop2: null,
+              $afterGetCalled: 1,
+              model1Relation1: {
+                id: 2,
+                model1Id: 3,
+                model1Prop1: 'hello 2',
+                model1Prop2: null,
+                $afterGetCalled: 1,
+                model1Relation1: {
+                  id: 3,
+                  model1Id: 4,
+                  model1Prop1: 'hello 3',
+                  model1Prop2: null,
+                  $afterGetCalled: 1,
+                  model1Relation1: {
+                    id: 4,
+                    model1Id: null,
+                    model1Prop1: 'hello 4',
+                    model1Prop2: null,
+                    $afterGetCalled: 1,
+                    model1Relation1: null
+                  }
+                }
+              }
+            }]);
+
+            done();
+          })
+          .catch(done);
+      });
+
+      it('infinitely recursive expressions should fail', done => {
+        Model1
+          .query()
+          .where('Model1.id', 1)
+          .eager('model1Relation1.^')
+          .eagerAlgorithm(Model1.JoinEagerAlgorithm)
+          .then(() => {
+            done(new Error('should not get here'));
+          })
+          .catch(err => {
+            expect(err.data.eager).to.equal('recursion depth of eager expression model1Relation1.^ too big for JoinEagerAlgorithm');
+            done();
+          });
+      });
+
+      it('should fail if given missing filter', done => {
+        Model1
+          .query()
+          .where('id', 1)
+          .eager('model1Relation2(missingFilter)')
+          .then(() => {
+            done(new Error('should not get here'));
+          })
+          .catch(error => {
+            expect(error).to.be.a(ValidationError);
+            expect(error.data).to.have.property('eager');
+            done();
+          })
+          .catch(done);
+      });
+
+      it('should fail if given missing relation', done => {
+        Model1
+          .query()
+          .where('id', 1)
+          .eager('invalidRelation')
+          .then(() => {
+            done(new Error('should not get here'));
+          })
+          .catch(error => {
+            expect(error).to.be.a(ValidationError);
+            expect(error.data).to.have.property('eager');
+            done();
+          })
+          .catch(done);
+      });
+
+    });
+
+    describe('Model.defaultEagerOptions and Model.defaultEagerAlgorithm should be used if defined', () => {
+      let TestModel;
+
+      before(() => {
+        // Create a dummy mock so that we can bind Model1 to it.
+        TestModel = Model1.bindKnex(mockKnexFactory(session.knex, function (mock, oldImpl, args) {
+          return oldImpl.apply(this, args);
+        }));
+
+        TestModel.defaultEagerAlgorithm = TestModel.JoinEagerAlgorithm;
+        TestModel.defaultEagerOptions = {
+          aliases: {
+            model1Relation2: 'mr2'
+          }
+        };
+      });
+
+      it('options for JoinEagerAlgorithm', () => {
+        return TestModel
+          .query()
+          .where('Model1.id', 1)
+          .where('mr2.id_col', 2)
+          .eager('[model1Relation1, model1Relation2.model2Relation1]')
+          .orderBy(['Model1.id', 'mr2:model2Relation1.id'])
+          .then(models => {
+            expect(models).to.eql([{
+              id: 1,
+              model1Id: 2,
+              model1Prop1: 'hello 1',
+              model1Prop2: null,
+              $afterGetCalled: 1,
+
+              model1Relation1: {
+                id: 2,
+                model1Id: 3,
+                model1Prop1: 'hello 2',
+                model1Prop2: null,
+                $afterGetCalled: 1
+              },
+
+              model1Relation2: [{
+                idCol: 2,
+                model1Id: 1,
+                model2Prop1: 'hejsan 2',
+                model2Prop2: null,
+                $afterGetCalled: 1,
+
+                model2Relation1: [{
+                  id: 5,
+                  model1Id: null,
+                  model1Prop1: 'hello 5',
+                  model1Prop2: null,
+                  aliasedExtra: 'extra 5',
+                  $afterGetCalled: 1
+                }, {
+                  id: 6,
+                  model1Id: 7,
+                  model1Prop1: 'hello 6',
+                  model1Prop2: null,
+                  aliasedExtra: 'extra 6',
+                  $afterGetCalled: 1
+                }]
+              }]
             }]);
           });
       });
 
     });
 
-    it('relation references longer that 63 chars should throw an exception (JoinEagerAlgorithm)', function (done) {
-      return Model1
-        .query()
-        .where('Model1.id', 1)
-        .eager('[model1Relation1.model1Relation1.model1Relation1.model1Relation1]')
-        .eagerAlgorithm(Model1.JoinEagerAlgorithm)
-        .then(function () {
-          done(new Error('should not get here'));
-        })
-        .catch(function (err) {
-          expect(err.data.eager).to.equal("identifier model1Relation1:model1Relation1:model1Relation1:model1Relation1:id is over 63 characters long and would be truncated by the database engine.");
-          done();
-        })
-        .catch(done);
-    });
+    describe('QueryBuilder.modifyEager', () => {
 
-    it('relation references longer that 63 chars should NOT throw an exception if minimize: true option is given (JoinEagerAlgorithm)', function (done) {
-      return Model1
-        .query()
-        .where('Model1.id', 1)
-        .eager('[model1Relation1.model1Relation1.model1Relation1.model1Relation1]')
-        .eagerAlgorithm(Model1.JoinEagerAlgorithm)
-        .eagerOptions({minimize: true})
-        .then(function (models) {
-          expect(models).to.eql([{
-            id: 1,
-            model1Id: 2,
-            model1Prop1: 'hello 1',
-            model1Prop2: null,
-            $afterGetCalled: 1,
-            model1Relation1: {
-              id: 2,
-              model1Id: 3,
-              model1Prop1: 'hello 2',
-              model1Prop2: null,
-              $afterGetCalled: 1,
-              model1Relation1: {
-                id: 3,
-                model1Id: 4,
-                model1Prop1: 'hello 3',
-                model1Prop2: null,
-                $afterGetCalled: 1,
-                model1Relation1: {
-                  id: 4,
-                  model1Id: null,
-                  model1Prop1: 'hello 4',
-                  model1Prop2: null,
-                  $afterGetCalled: 1,
-                  model1Relation1: null,
-                },
-              },
-            }
-          }]);
-
-          done();
-        })
-        .catch(done);
-    });
-
-    it('infinitely recursive expressions should fail gracefully with JoinEagerAlgorithm', function (done) {
-      expect(function () {
-        Model1
-          .query()
-          .where('Model1.id', 1)
-          .eager('model1Relation1.^')
-          .eagerAlgorithm(Model1.JoinEagerAlgorithm)
-          .then(function () {
-            done(new Error('should not get here'));
-          })
-          .catch(done);
-      }).to.throwException(function (err) {
-        expect(err.data.eager).to.equal('recursion depth of eager expression model1Relation1.^ too big for JoinEagerAlgorithm');
-        done();
-      })
-    });
-
-    it('should fail if given missing filter', function (done) {
-      Model1
-        .query()
-        .where('id', 1)
-        .eager('model1Relation2(missingFilter)')
-        .then(function () {
-          done(new Error('should not get here'));
-        })
-        .catch(function (error) {
-          expect(error).to.be.a(ValidationError);
-          expect(error.data).to.have.property('eager');
-          done();
-        })
-        .catch(done);
-    });
-
-    it('should fail if given missing relation', function (done) {
-      Model1
-        .query()
-        .where('id', 1)
-        .eager('invalidRelation')
-        .then(function () {
-          done(new Error('should not get here'));
-        })
-        .catch(function (error) {
-          expect(error).to.be.a(ValidationError);
-          expect(error.data).to.have.property('eager');
-          done();
-        })
-        .catch(done);
-    });
-
-    describe('QueryBuilder.modifyEager', function () {
-
-      it('should filter the eager query using relation expressions as paths', function () {
+      it('should filter the eager query using relation expressions as paths', () => {
         return Model1
           .query()
           .where('id', 1)
-          .modifyEager('model1Relation2.model2Relation1', function (builder) {
+          .modifyEager('model1Relation2.model2Relation1', builder => {
             builder.where('Model1.id', 6);
           })
           .eager('model1Relation2.model2Relation1.[model1Relation1, model1Relation2]')
-          .filterEager('model1Relation2', function (builder) {
+          .filterEager('model1Relation2', builder => {
             builder.where('model_2_prop_1', 'hejsan 2');
           })
-          .then(function (models) {
+          .then(models => {
             expect(models[0].model1Relation2).to.have.length(1);
             expect(models[0].model1Relation2[0].model2Prop1).to.equal('hejsan 2');
 
@@ -894,22 +936,85 @@ module.exports = function (session) {
           });
       });
 
-      it('should filter the eager query using relation expressions as paths (JoinEagerAlgorithm)', function () {
+      it('should implicitly add selects for join columns if they are omitted in filterEager/modifyEager', () => {
+        return Promise.all([Model1.WhereInEagerAlgorithm, Model1.JoinEagerAlgorithm].map(eagerAlgo => {
+          return Model1
+            .query()
+            .where('Model1.id', 1)
+            .column('Model1.model1Prop1')
+            .eager('model1Relation2.model2Relation1.[model1Relation1, model1Relation2]')
+            .eagerAlgorithm(eagerAlgo)
+            .filterEager('model1Relation2', builder => {
+              builder.select('model_2_prop_1');
+            })
+            .filterEager('model1Relation2.model2Relation1', builder => {
+              builder.distinct('model1Prop1');
+            })
+            .filterEager('model1Relation2.model2Relation1.model1Relation1', builder => {
+              builder.select('model1Prop1');
+            })
+            .filterEager('model1Relation2.model2Relation1.model1Relation2', builder => {
+              builder.select('model_2_prop_1');
+            })
+            .then(models => {
+              models[0].model1Relation2 = _.sortBy(models[0].model1Relation2, 'model2Prop1');
+              models[0].model1Relation2[1].model2Relation1 = _.sortBy(models[0].model1Relation2[1].model2Relation1 , 'model1Prop1');
+
+              expect(models).to.eql([{
+                model1Prop1: 'hello 1',
+                $afterGetCalled: 1,
+
+                model1Relation2: [{
+                  model2Prop1: 'hejsan 1',
+                  $afterGetCalled: 1,
+
+                  model2Relation1: []
+                }, {
+                  model2Prop1: 'hejsan 2',
+                  $afterGetCalled: 1,
+
+                  model2Relation1: [{
+                    model1Prop1: 'hello 5',
+                    $afterGetCalled: 1,
+
+                    model1Relation1: null,
+                    model1Relation2: []
+                  }, {
+                    model1Prop1: 'hello 6',
+                    $afterGetCalled: 1,
+
+                    model1Relation1: {
+                      model1Prop1: 'hello 7',
+                      $afterGetCalled: 1
+                    },
+
+                    model1Relation2: [{
+                      model2Prop1: 'hejsan 3',
+                      $afterGetCalled: 1
+                    }]
+                  }]
+                }]
+              }]);
+            });
+        }));
+      });
+
+      it('should filter the eager query using relation expressions as paths (JoinEagerAlgorithm)', () => {
         return Model1
           .query()
           .where('Model1.id', 1)
           .eagerAlgorithm(Model1.JoinEagerAlgorithm)
-          .modifyEager('model1Relation2.model2Relation1', function (builder) {
+          .modifyEager('model1Relation2.model2Relation1', builder => {
             builder.where('id', 6);
           })
           .eager('model1Relation2.model2Relation1.[model1Relation1, model1Relation2]')
-          .modifyEager('model1Relation2', function (builder) {
+          .modifyEager('model1Relation2', builder => {
             builder.where('model_2_prop_1', 'hejsan 2');
           })
-          .modifyEager('model1Relation2.model2Relation1', function (builder) {
+          .modifyEager('model1Relation2.model2Relation1', builder => {
             builder.select('model1Prop1');
           })
-          .then(function (models) {
+          .then(models => {
             expect(models).to.eql([{
               id: 1,
               model1Id: 2,
@@ -933,7 +1038,7 @@ module.exports = function (session) {
                     model1Id: null,
                     model1Prop1: 'hello 7',
                     model1Prop2: null,
-                    $afterGetCalled: 1,
+                    $afterGetCalled: 1
                   },
 
                   model1Relation2: [{
@@ -941,32 +1046,32 @@ module.exports = function (session) {
                     model1Id: 6,
                     model2Prop1: 'hejsan 3',
                     model2Prop2: null,
-                    $afterGetCalled: 1,
+                    $afterGetCalled: 1
                   }]
-                }],
-              }],
+                }]
+              }]
             }]);
           });
       });
 
     });
 
-    describe('QueryBuilder.pick', function () {
+    describe('QueryBuilder.pick', () => {
 
-      it('pick(properties) should pick properties recursively', function () {
+      it('pick(properties) should pick properties recursively', () => {
         return Model1
           .query()
           .where('id', 1)
           .eager('model1Relation2.model2Relation1.[model1Relation1, model1Relation2]')
           .first()
           .pick(['id', 'idCol', 'model1Relation1', 'model1Relation2', 'model2Relation1'])
-          .filterEager('model1Relation2', function (builder) {
+          .filterEager('model1Relation2', builder => {
             builder.orderBy('id_col');
           })
-          .modifyEager('model1Relation2.model2Relation1', function (builder) {
+          .modifyEager('model1Relation2.model2Relation1', builder => {
             builder.orderBy('id');
           })
-          .then(function (model) {
+          .then(model => {
             expect(model.toJSON()).to.eql({
               id: 1,
               model1Relation2: [{
@@ -992,7 +1097,7 @@ module.exports = function (session) {
           });
       });
 
-      it('pick(modelClass, properties) should pick properties recursively based on model class', function () {
+      it('pick(modelClass, properties) should pick properties recursively based on model class', () => {
         return Model1
           .query()
           .where('id', 1)
@@ -1000,13 +1105,13 @@ module.exports = function (session) {
           .first()
           .pick(Model1, ['id', 'model1Relation1', 'model1Relation2'])
           .pick(Model2, ['idCol', 'model2Relation1'])
-          .filterEager('model1Relation2', function (builder) {
+          .filterEager('model1Relation2', builder => {
             builder.orderBy('id_col');
           })
-          .modifyEager('model1Relation2.model2Relation1', function (builder) {
+          .modifyEager('model1Relation2.model2Relation1', builder => {
             builder.orderBy('id');
           })
-          .then(function (model) {
+          .then(model => {
             expect(model.toJSON()).to.eql({
               id: 1,
               model1Relation2: [{
@@ -1034,22 +1139,22 @@ module.exports = function (session) {
 
     });
 
-    describe('QueryBuilder.omit', function () {
+    describe('QueryBuilder.omit', () => {
 
-      it('omit(properties) should omit properties recursively', function () {
+      it('omit(properties) should omit properties recursively', () => {
         return Model1
           .query()
           .where('id', 1)
           .eager('model1Relation2.model2Relation1.[model1Relation1, model1Relation2]')
           .first()
           .omit(['model1Id', 'model1Prop1', 'model1Prop2', 'model2Prop1', 'model2Prop2'])
-          .filterEager('model1Relation2', function (builder) {
+          .filterEager('model1Relation2', builder => {
             builder.orderBy('id_col');
           })
-          .modifyEager('model1Relation2.model2Relation1', function (builder) {
+          .modifyEager('model1Relation2.model2Relation1', builder => {
             builder.orderBy('id');
           })
-          .then(function (model) {
+          .then(model => {
             expect(model.toJSON()).to.eql({
               id: 1,
               model1Relation2: [{
@@ -1077,7 +1182,7 @@ module.exports = function (session) {
           });
       });
 
-      it('omit(modelClass, properties) should omit properties recursively based on model class', function () {
+      it('omit(modelClass, properties) should omit properties recursively based on model class', () => {
         return Model1
           .query()
           .where('id', 1)
@@ -1085,13 +1190,13 @@ module.exports = function (session) {
           .first()
           .omit(Model1, ['model1Id', 'model1Prop1', 'model1Prop2'])
           .omit(Model2, ['model1Id', 'model2Prop1', 'model2Prop2'])
-          .filterEager('model1Relation2', function (builder) {
+          .filterEager('model1Relation2', builder => {
             builder.orderBy('id_col');
           })
-          .modifyEager('model1Relation2.model2Relation1', function (builder) {
+          .modifyEager('model1Relation2.model2Relation1', builder => {
             builder.orderBy('id');
           })
-          .then(function (model) {
+          .then(model => {
             expect(model.toJSON()).to.eql({
               id: 1,
               model1Relation2: [{
@@ -1119,6 +1224,262 @@ module.exports = function (session) {
           });
       });
 
+    });
+
+    describe('QueryBuilder.mergeEager', () => {
+
+      it('mergeEager should merge eager expressions', () => {
+        return Model1
+          .query()
+          .where('id', 1)
+          .eager('model1Relation2')
+          .mergeEager('model1Relation2.model2Relation1.model1Relation1')
+          .mergeEager('model1Relation2.model2Relation1.model1Relation2')
+          .first()
+          .omit(['model1Id', 'model1Prop1', 'model1Prop2', 'model2Prop1', 'model2Prop2'])
+          .filterEager('model1Relation2', builder => {
+            builder.orderBy('id_col');
+          })
+          .modifyEager('model1Relation2.model2Relation1', builder => {
+            builder.orderBy('id');
+          })
+          .then(model => {
+            expect(model.toJSON()).to.eql({
+              id: 1,
+              model1Relation2: [{
+                idCol: 1,
+                model2Relation1: []
+              }, {
+                idCol: 2,
+                model2Relation1: [{
+                  id: 5,
+                  aliasedExtra: 'extra 5',
+                  model1Relation1: null,
+                  model1Relation2: []
+                }, {
+                  id: 6,
+                  aliasedExtra: 'extra 6',
+                  model1Relation1: {
+                    id: 7
+                  },
+                  model1Relation2: [{
+                    idCol: 3
+                  }]
+                }]
+              }]
+            });
+          });
+      });
+
+      it('mergeEager should merge eager expressions and filters', () => {
+        return Model1
+          .query()
+          .where('id', 1)
+          .eager('model1Relation2')
+          .mergeEager('model1Relation2(f1).model2Relation1.model1Relation1', {
+            f1: builder => {
+              builder.orderBy('id_col');
+            }
+          })
+          .mergeEager('model1Relation2.model2Relation1(f2).model1Relation2', {
+            f2: builder => {
+              builder.orderBy('id');
+            }
+          })
+          .first()
+          .omit(['model1Id', 'model1Prop1', 'model1Prop2', 'model2Prop1', 'model2Prop2'])
+          .then(model => {
+            expect(model.toJSON()).to.eql({
+              id: 1,
+              model1Relation2: [{
+                idCol: 1,
+                model2Relation1: []
+              }, {
+                idCol: 2,
+                model2Relation1: [{
+                  id: 5,
+                  aliasedExtra: 'extra 5',
+                  model1Relation1: null,
+                  model1Relation2: []
+                }, {
+                  id: 6,
+                  aliasedExtra: 'extra 6',
+                  model1Relation1: {
+                    id: 7
+                  },
+                  model1Relation2: [{
+                    idCol: 3
+                  }]
+                }]
+              }]
+            });
+          });
+      });
+
+    });
+
+    describe('QueryBuilder.orderBy', () => {
+
+      it('orderBy should work for the root query', () => {
+
+        return Promise.map([Model1.WhereInEagerAlgorithm, Model1.JoinEagerAlgorithm], eagerAlgorithm => {
+          return Model1
+            .query()
+            .select('Model1.model1Prop1')
+            .modifyEager('model1Relation1', builder => {
+              builder.select('model1Prop1');
+            })
+            .eager('model1Relation1')
+            .eagerAlgorithm(eagerAlgorithm)
+            .orderBy('Model1.model1Prop1', 'DESC')
+            .whereNotNull('Model1.model1Id')
+            .then(models => {
+              expect(models).to.eql([{
+                model1Prop1: 'hello 8',
+                model1Relation1: { model1Prop1: 'hello 9', '$afterGetCalled': 1 },
+                '$afterGetCalled': 1
+              }, {
+                model1Prop1: 'hello 6',
+                model1Relation1:  { model1Prop1: 'hello 7', '$afterGetCalled': 1 },
+                '$afterGetCalled': 1
+              }, {
+                model1Prop1: 'hello 3',
+                model1Relation1:  { model1Prop1: 'hello 4', '$afterGetCalled': 1 },
+                '$afterGetCalled': 1
+              }, {
+                model1Prop1: 'hello 2',
+                model1Relation1:  { model1Prop1: 'hello 3', '$afterGetCalled': 1 },
+                '$afterGetCalled': 1
+              }, {
+                model1Prop1: 'hello 1',
+                model1Relation1:  { model1Prop1: 'hello 2', '$afterGetCalled': 1 },
+                '$afterGetCalled': 1 }
+              ]);
+            });
+        });
+
+      });
+
+    });
+
+    if (isPostgres(session.knex)) {
+      it('check JoinEagerAlgorithm generated SQL', () => {
+        let queries = [];
+
+        let mockKnex = mockKnexFactory(session.knex, function (mock, then, args) {
+          queries.push(this.toString());
+          return then.apply(this, args);
+        });
+
+        return Model1
+          .bindKnex(mockKnex)
+          .query()
+          .eagerAlgorithm(Model1.JoinEagerAlgorithm)
+          .eager('[model1Relation1, model1Relation1Inverse, model1Relation2.[model2Relation1, model2Relation2], model1Relation3]')
+          .then(() => {
+            expect(_.last(queries)).to.equal('select "Model1"."id" as "id", "Model1"."model1Id" as "model1Id", "Model1"."model1Prop1" as "model1Prop1", "Model1"."model1Prop2" as "model1Prop2", "model1Relation1"."id" as "model1Relation1:id", "model1Relation1"."model1Id" as "model1Relation1:model1Id", "model1Relation1"."model1Prop1" as "model1Relation1:model1Prop1", "model1Relation1"."model1Prop2" as "model1Relation1:model1Prop2", "model1Relation1Inverse"."id" as "model1Relation1Inverse:id", "model1Relation1Inverse"."model1Id" as "model1Relation1Inverse:model1Id", "model1Relation1Inverse"."model1Prop1" as "model1Relation1Inverse:model1Prop1", "model1Relation1Inverse"."model1Prop2" as "model1Relation1Inverse:model1Prop2", "model1Relation2"."id_col" as "model1Relation2:id_col", "model1Relation2"."model_1_id" as "model1Relation2:model_1_id", "model1Relation2"."model_2_prop_1" as "model1Relation2:model_2_prop_1", "model1Relation2"."model_2_prop_2" as "model1Relation2:model_2_prop_2", "model1Relation2:model2Relation1"."id" as "model1Relation2:model2Relation1:id", "model1Relation2:model2Relation1"."model1Id" as "model1Relation2:model2Relation1:model1Id", "model1Relation2:model2Relation1"."model1Prop1" as "model1Relation2:model2Relation1:model1Prop1", "model1Relation2:model2Relation1"."model1Prop2" as "model1Relation2:model2Relation1:model1Prop2", "model1Relation2:model2Relation1_join"."extra3" as "model1Relation2:model2Relation1:aliasedExtra", "model1Relation2:model2Relation2"."id" as "model1Relation2:model2Relation2:id", "model1Relation2:model2Relation2"."model1Id" as "model1Relation2:model2Relation2:model1Id", "model1Relation2:model2Relation2"."model1Prop1" as "model1Relation2:model2Relation2:model1Prop1", "model1Relation2:model2Relation2"."model1Prop2" as "model1Relation2:model2Relation2:model1Prop2", "model1Relation3"."id_col" as "model1Relation3:id_col", "model1Relation3"."model_1_id" as "model1Relation3:model_1_id", "model1Relation3"."model_2_prop_1" as "model1Relation3:model_2_prop_1", "model1Relation3"."model_2_prop_2" as "model1Relation3:model_2_prop_2", "model1Relation3_join"."extra1" as "model1Relation3:extra1", "model1Relation3_join"."extra2" as "model1Relation3:extra2" from "Model1" as "Model1" left join "Model1" as "model1Relation1" on "model1Relation1"."id" = "Model1"."model1Id" left join "Model1" as "model1Relation1Inverse" on "model1Relation1Inverse"."model1Id" = "Model1"."id" left join "model_2" as "model1Relation2" on "model1Relation2"."model_1_id" = "Model1"."id" left join "Model1Model2" as "model1Relation2:model2Relation1_join" on "model1Relation2:model2Relation1_join"."model2Id" = "model1Relation2"."id_col" left join "Model1" as "model1Relation2:model2Relation1" on "model1Relation2:model2Relation1_join"."model1Id" = "model1Relation2:model2Relation1"."id" left join "Model1Model2One" as "model1Relation2:model2Relation2_join" on "model1Relation2:model2Relation2_join"."model2Id" = "model1Relation2"."id_col" left join "Model1" as "model1Relation2:model2Relation2" on "model1Relation2:model2Relation2_join"."model1Id" = "model1Relation2:model2Relation2"."id" left join "Model1Model2" as "model1Relation3_join" on "model1Relation3_join"."model1Id" = "Model1"."id" left join "model_2" as "model1Relation3" on "model1Relation3_join"."model2Id" = "model1Relation3"."id_col"');
+          });
+      });
+    }
+
+    describe.skip('big data', () => {
+      let graph = null;
+
+      beforeEach(function () {
+        this.timeout(30000);
+        let n = 0;
+
+        graph = _.range(100).map(() => {
+          return {
+            model1Prop1: 'hello ' + n++,
+
+            model1Relation1: {
+              model1Prop1: 'hi ' + n++,
+
+              model1Relation1: {
+                model1Prop1: 'howdy ' + n++
+              }
+            },
+
+            model1Relation1Inverse: {
+              model1Prop1: 'quux ' + n++,
+            },
+
+            model1Relation2: _.range(10).map(() => {
+              return {
+                model2Prop1: 'foo ' + n++,
+
+                model2Relation1: _.range(10).map(() => {
+                  return {
+                    model1Prop1: 'bar ' + n++
+                  };
+                }),
+
+                model2Relation2: {
+                  model1Prop1: 'baz ' + n++
+                }
+              };
+            }),
+
+            model1Relation3: _.range(10).map(() => {
+              return {
+                model2Prop1: 'spam ' + n++,
+              };
+            })
+          };
+        });
+
+        return session.populate([]).then(() => {
+          return Model1.query().insertGraph(graph);
+        }).then(inserted => {
+          graph = inserted;
+        });
+      });
+
+      it('should work with a lot of data', function () {
+        this.timeout(30000);
+
+        return Promise.map([/*Model1.WhereInEagerAlgorithm*/ Model1.JoinEagerAlgorithm], eagerAlgorithm => {
+          let t1 = Date.now();
+          return Model1
+            .query()
+            .where('Model1.model1Prop1', 'like', 'hello%')
+            .eager('[model1Relation1.model1Relation1, model1Relation1Inverse, model1Relation2.[model2Relation1, model2Relation2], model1Relation3]')
+            .eagerAlgorithm(eagerAlgorithm)
+            .then(res => {
+              console.log(Date.now() - t1);
+
+              graph = _.sortBy(graph, 'id');
+              res = _.sortBy(res, 'id');
+
+              Model1.traverse(graph, traverser);
+              Model1.traverse(res, traverser);
+
+              let expected = _.invokeMap(graph, 'toJSON');
+              let got = _.invokeMap(res, 'toJSON');
+
+              expect(got).to.eql(expected);
+            });
+        }, {concurrency: 1});
+      });
+
+      function traverser(model) {
+        ['extra1', 'extra2', 'aliasedExtra', 'model1Id', 'model1Prop2', 'model2Prop2'].forEach(key => {
+          delete model[key];
+        });
+
+        ['model1Relation2', 'model1Relation3'].map(rel => {
+          if (model[rel]) {
+            model[rel] = _.sortBy(model[rel], 'idCol');
+          }
+        });
+
+        ['model2Relation1'].map(rel => {
+          if (model[rel]) {
+            model[rel] = _.sortBy(model[rel], 'id');
+          }
+        })
+      }
     });
 
   });
@@ -1131,11 +1492,11 @@ module.exports = function (session) {
       id: 1
     });
 
-    var idCol = opt.Model.getFullIdColumn();
-    var testFn = opt.only ? it.only.bind(it) : it;
+    let idCol = opt.Model.getFullIdColumn();
+    let testFn = opt.only ? it.only.bind(it) : it;
 
     if (!opt.disableWhereIn) {
-      testFn(expr + ' (QueryBuilder.eager)', function () {
+      testFn(expr + ' (QueryBuilder.eager)', () => {
         return opt.Model
           .query()
           .where(idCol, opt.id)
@@ -1144,33 +1505,33 @@ module.exports = function (session) {
           .then(tester);
       });
 
-      testFn(expr + ' (Model.loadRelated)', function () {
+      testFn(expr + ' (Model.loadRelated)', () => {
         return opt.Model
           .query()
           .where(idCol, opt.id)
-          .then(function (models) {
+          .then(models => {
             return opt.Model.loadRelated(models, expr, opt.filters);
           })
           .then(sortRelations(opt.disableSort))
           .then(tester);
       });
 
-      testFn(expr + ' (Model.$loadRelated)', function () {
+      testFn(expr + ' (Model.$loadRelated)', () => {
         return opt.Model
           .query()
           .where(idCol, opt.id)
-          .then(function (models) {
+          .then(models => {
             return models[0].$loadRelated(expr, opt.filters);
           })
           .then(sortRelations(opt.disableSort))
-          .then(function (result) {
+          .then(result => {
             tester([result]);
           });
       });
     }
 
     if (!opt.disableJoin) {
-      testFn(expr + ' (JoinEagerAlgorithm)', function () {
+      testFn(expr + ' (JoinEagerAlgorithm)', () => {
         return opt.Model
           .query()
           .where(idCol, opt.id)
@@ -1184,13 +1545,13 @@ module.exports = function (session) {
 
   function sortRelations(disable) {
     if (disable) {
-      return function (models) {
+      return models => {
         return models;
       };
     }
 
-    return function (models) {
-      Model1.traverse(models, function (model) {
+    return models => {
+      Model1.traverse(models, model => {
         if (model.model1Relation2) {
           model.model1Relation2 = _.sortBy(model.model1Relation2, 'idCol');
         }
