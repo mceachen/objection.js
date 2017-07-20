@@ -67,9 +67,11 @@ declare namespace Objection {
    */
   type RelationExpression = string;
 
-  type FilterFunction = <T>(queryBuilder: QueryBuilder<T>) => void;
+  interface FilterFunction<T> {
+    (queryBuilder: QueryBuilder<T>): void;
+  }
 
-  interface FilterExpression { [namedFilter: string]: FilterFunction; }
+  interface FilterExpression<T> { [namedFilter: string]: FilterFunction<T>; }
 
   interface RelationExpressionMethod {
     <T>(relationExpression: RelationExpression): QueryBuilder<T>;
@@ -456,7 +458,7 @@ declare namespace Objection {
     runAfter(fn: (builder: this) => void): this;
 
     eagerAlgorithm(algo: EagerAlgorithm): this;
-    eager(relationExpression: RelationExpression, filters?: FilterExpression): this;
+    eager(relationExpression: RelationExpression, filters?: FilterExpression<T>): this;
 
     allowEager: RelationExpressionMethod;
     modifyEager: ModifyEager<T>;
